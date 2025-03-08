@@ -144,11 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ['principal', 'rate', 'time'].forEach(id => document.getElementById(`${id}-error`).textContent = '');
     });
 
-    // Scientific Calculator Logic
+    // Normal Calculator Logic
     let expression = '';
     let result = '';
-    let memory = 0;
-    let isRadians = true; // Default to radians
 
     document.querySelectorAll('.calc-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -157,9 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (value === 'C') {
                 expression = '';
                 result = '';
-                updateDisplay();
-            } else if (value === '⌫') {
-                expression = expression.slice(0, -1);
                 updateDisplay();
             } else if (value === '=') {
                 try {
@@ -170,37 +165,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     result = 'Error';
                     updateDisplay(true);
                 }
-            } else if (value === 'MC') {
-                memory = 0;
+            } else if (value === '±') {
+                if (expression && !/[+\-×÷]/.test(expression.slice(-1))) {
+                    const lastNumberMatch = expression.match(/(-?\d*\.?\d+)$/);
+                    if (lastNumberMatch) {
+                        const lastNumber = lastNumberMatch[0];
+                        const toggledNumber = (parseFloat(lastNumber) * -1).toString();
+                        expression = expression.slice(0, -lastNumber.length) + toggledNumber;
+                    }
+                }
                 updateDisplay();
-            } else if (value === 'MR') {
-                expression += memory;
-                updateDisplay();
-            } else if (value === 'M+') {
+            } else if (value === '%') {
                 try {
-                    memory += parseFloat(evaluateExpression(expression));
+                    const lastNumberMatch = expression.match(/(-?\d*\.?\d+)$/);
+                    if (lastNumberMatch) {
+                        const lastNumber = lastNumberMatch[0];
+                        const percentage = (parseFloat(lastNumber) / 100).toString();
+                        expression = expression.slice(0, -lastNumber.length) + percentage;
+                    }
                     updateDisplay();
                 } catch (e) {
                     result = 'Error';
                     updateDisplay(true);
                 }
-            } else if (value === 'M-') {
-                try {
-                    memory -= parseFloat(evaluateExpression(expression));
-                    updateDisplay();
-                } catch (e) {
-                    result = 'Error';
-                    updateDisplay(true);
-                }
-            } else if (value === 'deg/rad') {
-                isRadians = !isRadians;
-                btn.textContent = isRadians ? 'deg/rad' : 'deg/rad'; // Toggle label
-                updateDisplay();
             } else {
-                // Ensure digits are grouped correctly by adding spaces around operators
+                // Ensure digits and operators are spaced correctly
                 if (/[\d.]/.test(value) && !/[\d.]/.test(expression.slice(-1))) {
                     expression += value;
-                } else if (/[+\-×÷^]/.test(value) && !/[+\-×÷^]/.test(expression.slice(-1))) {
+                } else if (/[+\-×÷]/.test(value) && !/[+\-×÷]/.test(expression.slice(-1))) {
                     expression += ` ${value} `;
                 } else {
                     expression += value;
@@ -225,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function formatResult(num) {
-        // Remove trailing zeros and unnecessary decimal points
         const parsed = parseFloat(num);
         if (isNaN(parsed)) return num;
         return parsed % 1 === 0 ? parsed.toString() : parsed.toFixed(4).replace(/\.?0+$/, '');
@@ -235,26 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Replace readable symbols with JS equivalents and normalize spaces
         expr = expr.replace(/\s+/g, ' ').trim()
                    .replace(/×/g, '*')
-                   .replace(/÷/g, '/')
-                   .replace(/π/g, Math.PI)
-                   .replace(/e/g, Math.E);
+                   .replace(/÷/g, '/');
 
-        // Handle scientific functions
-        const functions = {
-            'sin': isRadians ? Math.sin : (x) => Math.sin(x * Math.PI / 180),
-            'cos': isRadians ? Math.cos : (x) => Math.cos(x * Math.PI / 180),
-            'tan': isRadians ? Math.tan : (x) => Math.tan(x * Math.PI / 180),
-            'sin⁻¹': isRadians ? Math.asin : (x) => Math.asin(x) * 180 / Math.PI,
-            'cos⁻¹': isRadians ? Math.acos : (x) => Math.acos(x) * 180 / Math.PI,
-            'tan⁻¹': isRadians ? Math.atan : (x) => Math.atan(x) * 180 / Math.PI,
-            'ln': Math.log,
-            'log': Math.log10,
-            '√': Math.sqrt,
-            '!': factorial
-        };
-
-        // Tokenize expression
-        const tokens = expr.match(/([0-9.]+|sin|cos|tan|sin⁻¹|cos⁻¹|tan⁻¹|ln|log|√|\^|\+|\-|\*|\/|\(|\)|\π|e|!)/g) || [];
+        // Tokenize and evaluate using a simple parser
+        const tokens = expr.match(/([0-9.]+|\+|\-|\*|\/)/g) || [];
         let stack = [];
         let output = [];
 
@@ -262,26 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
             '+': 1,
             '-': 1,
             '*': 2,
-            '/': 2,
-            '^': 3,
-            '!': 4
+            '/': 2
         };
 
         tokens.forEach(token => {
-            if (!isNaN(token) || token === 'π' || token === 'e') {
-                output.push(parseFloat(token) || (token === 'π' ? Math.PI : Math.E));
-            } else if (token in functions) {
-                stack.push(token);
-            } else if (token === '(') {
-                stack.push(token);
-            } else if (token === ')') {
-                while (stack.length && stack[stack.length - 1] !== '(') {
-                    output.push(stack.pop());
-                }
-                stack.pop(); // Remove '('
-                if (stack.length && stack[stack.length - 1] in functions) {
-                    output.push(stack.pop());
-                }
+            if (!isNaN(token)) {
+                output.push(parseFloat(token));
             } else if (token in precedence) {
                 while (stack.length && stack[stack.length - 1] in precedence && 
                        precedence[stack[stack.length - 1]] >= precedence[token]) {
@@ -295,17 +256,11 @@ document.addEventListener('DOMContentLoaded', () => {
             output.push(stack.pop());
         }
 
-        // Evaluate RPN (Reverse Polish Notation)
+        // Evaluate RPN
         const evalStack = [];
         output.forEach(token => {
             if (typeof token === 'number') {
                 evalStack.push(token);
-            } else if (token in functions) {
-                const arg = evalStack.pop();
-                if (token === '!') {
-                    if (!Number.isInteger(arg) || arg < 0) throw new Error('Invalid factorial');
-                }
-                evalStack.push(functions[token](arg));
             } else {
                 const b = evalStack.pop();
                 const a = evalStack.pop();
@@ -317,17 +272,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (b === 0) throw new Error('Division by zero');
                         evalStack.push(a / b); 
                         break;
-                    case '^': evalStack.push(Math.pow(a, b)); break;
                 }
             }
         });
 
         return evalStack[0];
-    }
-
-    function factorial(n) {
-        if (n === 0 || n === 1) return 1;
-        return n * factorial(n - 1);
     }
 
     // Animate Result (Interest Calculator)

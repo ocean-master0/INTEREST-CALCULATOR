@@ -1,14 +1,22 @@
 :root {
-    --bg-dark: #0a0f2b;
-    --bg-light: #e0e7ff;
-    --container-dark: linear-gradient(135deg, #1a1e3d, #2b3159);
-    --container-light: linear-gradient(135deg, #ffffff, #f0f4ff);
+    --bg-dark: linear-gradient(135deg, #1a1e3d, #0a0f2b);
+    --bg-light: linear-gradient(135deg, #e0e7ff, #ffffff);
+    --container-dark: linear-gradient(135deg, #2b3159, #1a1e3d);
+    --container-light: linear-gradient(135deg, #f0f4ff, #ffffff);
     --text-dark: #d4d7ff;
     --text-light: #1a1e3d;
     --input-dark: #2b3159;
     --input-light: #f0f4ff;
     --highlight-dark: #00eaff;
     --highlight-light: #007bff;
+    --operator-dark: #f59e0b;
+    --operator-light: #f97316;
+    --number-dark: #4b5563;
+    --number-light: #6b7280;
+    --utility-dark: #ef4444;
+    --utility-light: #dc2626;
+    --equals-dark: #3b82f6;
+    --equals-light: #2563eb;
     --error-dark: #ff4d6d;
     --error-light: #d9534f;
     --button-clear-dark: #ff4d6d;
@@ -19,14 +27,6 @@
     --fortune-light: #d1d9ff;
     --badge-dark: #ffd700;
     --badge-light: #ffcc00;
-    --calc-btn-dark: linear-gradient(135deg, #3b426e, #4b5280);
-    --calc-btn-light: linear-gradient(135deg, #d1d9ff, #e0e7ff);
-    --calc-operator-dark: #ffaa00;
-    --calc-operator-light: #ff9900;
-    --calc-function-dark: linear-gradient(135deg, #6b7280, #8b929f);
-    --calc-function-light: linear-gradient(135deg, #9ca3af, #bcc3cf);
-    --calc-memory-dark: #10b981;
-    --calc-memory-light: #059669;
     --shadow-dark: 0 8px 24px rgba(0, 0, 0, 0.5);
     --shadow-light: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
@@ -37,15 +37,15 @@ body.dark-mode {
     --text: var(--text-dark);
     --input: var(--input-dark);
     --highlight: var(--highlight-dark);
+    --operator: var(--operator-dark);
+    --number: var(--number-dark);
+    --utility: var(--utility-dark);
+    --equals: var(--equals-dark);
     --error: var(--error-dark);
     --button-clear: var(--button-clear-dark);
     --progress: var(--progress-dark);
     --fortune: var(--fortune-dark);
     --badge: var(--badge-dark);
-    --calc-btn: var(--calc-btn-dark);
-    --calc-operator: var(--calc-operator-dark);
-    --calc-function: var(--calc-function-dark);
-    --calc-memory: var(--calc-memory-dark);
     --shadow: var(--shadow-dark);
 }
 
@@ -55,15 +55,15 @@ body.light-mode {
     --text: var(--text-light);
     --input: var(--input-light);
     --highlight: var(--highlight-light);
+    --operator: var(--operator-light);
+    --number: var(--number-light);
+    --utility: var(--utility-light);
+    --equals: var(--equals-light);
     --error: var(--error-light);
     --button-clear: var(--button-clear-light);
     --progress: var(--progress-light);
     --fortune: var(--fortune-light);
     --badge: var(--badge-light);
-    --calc-btn: var(--calc-btn-light);
-    --calc-operator: var(--calc-operator-light);
-    --calc-function: var(--calc-function-light);
-    --calc-memory: var(--calc-memory-light);
     --shadow: var(--shadow-light);
 }
 
@@ -75,7 +75,7 @@ body.light-mode {
 }
 
 body {
-    background: linear-gradient(135deg, var(--bg), var(--bg));
+    background: var(--bg);
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -86,11 +86,11 @@ body {
 
 .container {
     background: var(--container);
-    padding: 40px;
-    border-radius: 20px;
+    padding: 20px;
+    border-radius: 15px;
     box-shadow: var(--shadow);
     width: 100%;
-    max-width: 600px;
+    max-width: 350px;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -99,12 +99,12 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
 }
 
 h1 {
     font-family: 'Orbitron', sans-serif;
-    font-size: 28px;
+    font-size: 24px;
     color: var(--highlight);
     text-transform: uppercase;
     letter-spacing: 2px;
@@ -117,8 +117,8 @@ h1 {
 }
 
 .theme-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     fill: var(--text);
     transition: transform 0.3s;
 }
@@ -135,12 +135,12 @@ h1 {
 
 .tab-btn {
     flex: 1;
-    padding: 12px;
+    padding: 10px;
     background: var(--input);
     border: none;
     border-radius: 10px;
     color: var(--text);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -161,13 +161,13 @@ h1 {
 }
 
 .input-group {
-    margin-bottom: 25px;
+    margin-bottom: 20px;
 }
 
 .input-group label {
-    font-size: 14px;
+    font-size: 12px;
     color: var(--text);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     display: block;
     font-weight: 300;
 }
@@ -181,12 +181,12 @@ h1 {
 .input-group input, 
 .input-group select {
     width: 100%;
-    padding: 12px 40px 12px 15px;
+    padding: 10px 30px 10px 12px;
     border: none;
     border-radius: 10px;
     background: var(--input);
     color: var(--text);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
     transition: all 0.3s ease;
@@ -200,16 +200,16 @@ h1 {
 
 .mic-btn {
     position: absolute;
-    right: 10px;
+    right: 8px;
     background: none;
     border: none;
     cursor: pointer;
-    padding: 5px;
+    padding: 4px;
 }
 
 .mic-icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     fill: var(--highlight);
     transition: transform 0.3s, fill 0.3s;
 }
@@ -220,16 +220,16 @@ h1 {
 }
 
 .error-text {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--error);
-    margin-top: 5px;
+    margin-top: 4px;
     display: block;
 }
 
 .slider-toggle {
     position: relative;
     width: 100%;
-    height: 50px;
+    height: 40px;
 }
 
 .slider-track {
@@ -237,8 +237,8 @@ h1 {
     justify-content: space-between;
     align-items: center;
     background: var(--input);
-    border-radius: 25px;
-    padding: 5px;
+    border-radius: 20px;
+    padding: 4px;
     position: relative;
     cursor: pointer;
     box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
@@ -247,9 +247,9 @@ h1 {
 .slider-option {
     flex: 1;
     text-align: center;
-    padding: 10px;
+    padding: 8px;
     color: var(--text);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     z-index: 1;
     transition: color 0.3s ease;
@@ -272,16 +272,16 @@ h1 {
 
 .button-group {
     display: flex;
-    gap: 15px;
-    margin-top: 20px;
+    gap: 10px;
+    margin-top: 15px;
 }
 
 button {
     flex: 1;
-    padding: 14px;
+    padding: 12px;
     border: none;
     border-radius: 10px;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -301,28 +301,28 @@ button#random-scenario {
 }
 
 button:hover, button:focus {
-    transform: translateY(-3px);
+    transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
     outline: none;
 }
 
 .progress-bar {
     width: 0%;
-    height: 6px;
+    height: 5px;
     background: var(--progress);
     border-radius: 10px;
-    margin: 15px 0;
+    margin: 12px 0;
     transition: width 1s ease-in-out;
     box-shadow: 0 0 10px var(--progress);
 }
 
 .result-box, .fortune-box, .badge-box {
-    margin-top: 20px;
-    padding: 15px;
+    margin-top: 15px;
+    padding: 12px;
     background: var(--input);
     border-radius: 10px;
     text-align: center;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--text);
     box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
@@ -345,14 +345,14 @@ button:hover, button:focus {
 }
 
 .share-options {
-    margin-top: 20px;
+    margin-top: 15px;
     text-align: center;
 }
 
 .share-options a, .share-options button {
     display: inline-block;
     margin: 5px;
-    padding: 10px 20px;
+    padding: 8px 16px;
     background: var(--highlight);
     color: var(--container);
     text-decoration: none;
@@ -367,10 +367,9 @@ button:hover, button:focus {
     transform: scale(1.05);
 }
 
-/* Scientific Calculator Styles */
+/* Normal Calculator Styles */
 .calculator {
     width: 100%;
-    max-width: 450px;
     margin: 0 auto;
 }
 
@@ -387,10 +386,11 @@ button:hover, button:focus {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow: hidden;
 }
 
 #expression {
-    font-size: 20px;
+    font-size: 18px;
     color: rgba(var(--text), 0.7);
     font-weight: 400;
     word-wrap: break-word;
@@ -404,16 +404,15 @@ button:hover, button:focus {
 
 .calc-buttons {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
 }
 
 .calc-btn {
     padding: 20px;
-    background: var(--calc-btn);
     border: none;
     border-radius: 15px;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--text);
     cursor: pointer;
@@ -428,31 +427,26 @@ button:hover, button:focus {
 }
 
 .calc-btn.operator {
-    background: var(--calc-operator);
+    background: var(--operator);
     color: var(--container);
 }
 
-.calc-btn.function {
-    background: var(--calc-function);
+.calc-btn.number {
+    background: var(--number);
     color: var(--text);
 }
 
-.calc-btn.memory {
-    background: var(--calc-memory);
+.calc-btn.utility {
+    background: var(--utility);
     color: var(--container);
 }
 
 .calc-btn.equals {
-    background: var(--highlight);
+    background: var(--equals);
     color: var(--container);
-}
-
-.calc-btn.clear {
-    background: var(--button-clear);
-    color: var(--text);
+    grid-column: span 2;
 }
 
 .calc-btn.zero {
     grid-column: span 2;
-    border-radius: 15px;
 }
