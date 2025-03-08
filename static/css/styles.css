@@ -1,0 +1,458 @@
+:root {
+    --bg-dark: #0a0f2b;
+    --bg-light: #e0e7ff;
+    --container-dark: linear-gradient(135deg, #1a1e3d, #2b3159);
+    --container-light: linear-gradient(135deg, #ffffff, #f0f4ff);
+    --text-dark: #d4d7ff;
+    --text-light: #1a1e3d;
+    --input-dark: #2b3159;
+    --input-light: #f0f4ff;
+    --highlight-dark: #00eaff;
+    --highlight-light: #007bff;
+    --error-dark: #ff4d6d;
+    --error-light: #d9534f;
+    --button-clear-dark: #ff4d6d;
+    --button-clear-light: #d9534f;
+    --progress-dark: #00ffaa;
+    --progress-light: #28a745;
+    --fortune-dark: #3b426e;
+    --fortune-light: #d1d9ff;
+    --badge-dark: #ffd700;
+    --badge-light: #ffcc00;
+    --calc-btn-dark: linear-gradient(135deg, #3b426e, #4b5280);
+    --calc-btn-light: linear-gradient(135deg, #d1d9ff, #e0e7ff);
+    --calc-operator-dark: #ffaa00;
+    --calc-operator-light: #ff9900;
+    --calc-function-dark: linear-gradient(135deg, #6b7280, #8b929f);
+    --calc-function-light: linear-gradient(135deg, #9ca3af, #bcc3cf);
+    --calc-memory-dark: #10b981;
+    --calc-memory-light: #059669;
+    --shadow-dark: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-light: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+body.dark-mode {
+    --bg: var(--bg-dark);
+    --container: var(--container-dark);
+    --text: var(--text-dark);
+    --input: var(--input-dark);
+    --highlight: var(--highlight-dark);
+    --error: var(--error-dark);
+    --button-clear: var(--button-clear-dark);
+    --progress: var(--progress-dark);
+    --fortune: var(--fortune-dark);
+    --badge: var(--badge-dark);
+    --calc-btn: var(--calc-btn-dark);
+    --calc-operator: var(--calc-operator-dark);
+    --calc-function: var(--calc-function-dark);
+    --calc-memory: var(--calc-memory-dark);
+    --shadow: var(--shadow-dark);
+}
+
+body.light-mode {
+    --bg: var(--bg-light);
+    --container: var(--container-light);
+    --text: var(--text-light);
+    --input: var(--input-light);
+    --highlight: var(--highlight-light);
+    --error: var(--error-light);
+    --button-clear: var(--button-clear-light);
+    --progress: var(--progress-light);
+    --fortune: var(--fortune-light);
+    --badge: var(--badge-light);
+    --calc-btn: var(--calc-btn-light);
+    --calc-operator: var(--calc-operator-light);
+    --calc-function: var(--calc-function-light);
+    --calc-memory: var(--calc-memory-light);
+    --shadow: var(--shadow-light);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, var(--bg), var(--bg));
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text);
+    transition: all 0.5s ease;
+}
+
+.container {
+    background: var(--container);
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 600px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    color: var(--highlight);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+#theme-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.theme-icon {
+    width: 24px;
+    height: 24px;
+    fill: var(--text);
+    transition: transform 0.3s;
+}
+
+#theme-toggle:hover .theme-icon {
+    transform: rotate(20deg);
+}
+
+.tab-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    background: var(--input);
+    border: none;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tab-btn.active {
+    background: var(--highlight);
+    color: var(--container);
+    box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.input-group {
+    margin-bottom: 25px;
+}
+
+.input-group label {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 8px;
+    display: block;
+    font-weight: 300;
+}
+
+.input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-group input, 
+.input-group select {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: none;
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.input-group input:focus, 
+.input-group select:focus {
+    outline: none;
+    box-shadow: 0 0 10px var(--highlight);
+}
+
+.mic-btn {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+}
+
+.mic-icon {
+    width: 20px;
+    height: 20px;
+    fill: var(--highlight);
+    transition: transform 0.3s, fill 0.3s;
+}
+
+.mic-btn:hover .mic-icon {
+    transform: scale(1.2);
+    fill: var(--text);
+}
+
+.error-text {
+    font-size: 12px;
+    color: var(--error);
+    margin-top: 5px;
+    display: block;
+}
+
+.slider-toggle {
+    position: relative;
+    width: 100%;
+    height: 50px;
+}
+
+.slider-track {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--input);
+    border-radius: 25px;
+    padding: 5px;
+    position: relative;
+    cursor: pointer;
+    box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+}
+
+.slider-option {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    z-index: 1;
+    transition: color 0.3s ease;
+}
+
+.slider-handle {
+    position: absolute;
+    width: 50%;
+    height: 100%;
+    background: var(--highlight);
+    border-radius: 20px;
+    transition: left 0.3s ease;
+    box-shadow: 0 0 10px var(--highlight);
+    left: 0;
+}
+
+.slider-track.active-compound .slider-handle {
+    left: 50%;
+}
+
+.button-group {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+button {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--highlight);
+    color: var(--container);
+    box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+button[type="button"]#clear-interest {
+    background: var(--button-clear);
+    color: var(--text);
+}
+
+button#random-scenario {
+    background: #ffaa00;
+    color: var(--container);
+}
+
+button:hover, button:focus {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    outline: none;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 6px;
+    background: var(--progress);
+    border-radius: 10px;
+    margin: 15px 0;
+    transition: width 1s ease-in-out;
+    box-shadow: 0 0 10px var(--progress);
+}
+
+.result-box, .fortune-box, .badge-box {
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--input);
+    border-radius: 10px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+}
+
+.fortune-box {
+    background: var(--fortune);
+    font-style: italic;
+}
+
+.badge-box {
+    background: var(--badge);
+    color: var(--container);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.result-box .error {
+    color: var(--error);
+}
+
+.share-options {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.share-options a, .share-options button {
+    display: inline-block;
+    margin: 5px;
+    padding: 10px 20px;
+    background: var(--highlight);
+    color: var(--container);
+    text-decoration: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 700;
+}
+
+.share-options button:hover, .share-options a:hover {
+    background: #00b8d4;
+    transform: scale(1.05);
+}
+
+/* Scientific Calculator Styles */
+.calculator {
+    width: 100%;
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+.calc-display {
+    width: 100%;
+    padding: 20px;
+    background: var(--input);
+    border-radius: 15px;
+    font-size: 28px;
+    text-align: right;
+    color: var(--text);
+    margin-bottom: 20px;
+    box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#expression {
+    font-size: 20px;
+    color: rgba(var(--text), 0.7);
+    font-weight: 400;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+}
+
+#result.highlight {
+    color: var(--highlight);
+    font-weight: 700;
+}
+
+.calc-buttons {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
+.calc-btn {
+    padding: 20px;
+    background: var(--calc-btn);
+    border: none;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.2), -4px -4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.calc-btn:hover, .calc-btn:focus {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    outline: none;
+}
+
+.calc-btn.operator {
+    background: var(--calc-operator);
+    color: var(--container);
+}
+
+.calc-btn.function {
+    background: var(--calc-function);
+    color: var(--text);
+}
+
+.calc-btn.memory {
+    background: var(--calc-memory);
+    color: var(--container);
+}
+
+.calc-btn.equals {
+    background: var(--highlight);
+    color: var(--container);
+}
+
+.calc-btn.clear {
+    background: var(--button-clear);
+    color: var(--text);
+}
+
+.calc-btn.zero {
+    grid-column: span 2;
+    border-radius: 15px;
+}
