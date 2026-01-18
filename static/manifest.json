@@ -1,0 +1,21 @@
+{
+  "name": "Advanced Interest Calculator",
+  "short_name": "InterestCalc",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f2b",
+  "theme_color": "#0a0f2b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/images/icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/images/icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
