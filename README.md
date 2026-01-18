@@ -57,6 +57,25 @@ A sophisticated, mobile-first web application enabling users to calculate Simple
     *   Local: `http://127.0.0.1:5000`
     *   Network (Mobile): `http://<YOUR_IP>:5000`
 
+## ☁️ Deployment (Render)
+
+This project is fully configured for deployment on [Render](https://render.com).
+
+### Option 1: Automatic Deployment (Recommended)
+1.  Push this code to a **GitHub** or **GitLab** repository.
+2.  Log in to dashboard.render.com.
+3.  Click **New +** -> **Web Service**.
+4.  Connect your repository.
+5.  Render will automatically detect the `render.yaml` or `Procfile` and configure the build/start commands.
+    *   **Build Command**: `pip install -r requirements.txt`
+    *   **Start Command**: `gunicorn app:app`
+6.  Click **Deploy**.
+
+### Configuration Files
+*   `Procfile`: Specifies the start command (`gunicorn app:app`).
+*   `requirements.txt`: Lists dependencies (`flask`, `gunicorn`).
+*   `render.yaml`: (Optional) Blueprint for Infrastructure as Code.
+
 ## 📂 Project Structure
 
 ```

@@ -60,4 +60,9 @@ def calculate_interest():
         return jsonify({'error': 'Please enter valid numeric values.'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+    # On Render, the PORT env var is set. We should run on 0.0.0.0.
+    # We disable debug mode on Render for security.
+    is_production = os.environ.get('RENDER') is not None
+    port = int(os.environ.get('PORT', 5000))
+    
+    app.run(host='0.0.0.0', port=port, debug=not is_production)
