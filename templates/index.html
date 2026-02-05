@@ -1,64 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Calculator</title>
+    
+    <!-- PWA Meta -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <meta name="theme-color" content="#0a0f2b">
+    <meta name="theme-color" content="#0a1628">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192x192.png') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap"
-        rel="stylesheet">
 </head>
-
-<body class="light-mode">
+<body>
     <div class="container">
-        <div class="header">
+        <!-- Header -->
+        <header class="header">
             <h1>Advanced Calculator</h1>
-        </div>
-        <div class="tab-group">
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-group">
             <button class="tab-btn active" data-tab="interest">Interest Calculator</button>
             <button class="tab-btn" data-tab="normal">Normal Calculator</button>
-        </div>
+        </nav>
 
-        <!-- Interest Calculator -->
-        <div id="interest" class="tab-content active">
+        <!-- ============================================================
+             Interest Calculator Tab
+             ============================================================ -->
+        <section id="interest" class="tab-content active">
             <form id="interest-form" aria-label="Interest Calculator Form">
+                <!-- Principal Input -->
                 <div class="input-group">
                     <label for="principal">Principal (INR)</label>
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="principal" name="principal"
-                            placeholder="Enter Principal" required aria-describedby="principal-error">
+                               placeholder="Enter amount" required aria-describedby="principal-error">
                     </div>
                     <span id="principal-error" class="error-text"></span>
                 </div>
+
+                <!-- Rate Input -->
                 <div class="input-group">
-                    <label for="rate">Rate (% p.a.)</label>
+                    <label for="rate">Rate (% per annum)</label>
                     <div class="input-wrapper">
-                        <input type="text" inputmode="decimal" id="rate" name="rate" placeholder="Enter Rate" required
-                            aria-describedby="rate-error">
+                        <input type="text" inputmode="decimal" id="rate" name="rate"
+                               placeholder="Enter rate" required aria-describedby="rate-error">
                     </div>
                     <span id="rate-error" class="error-text"></span>
                 </div>
+
+                <!-- Time Input with Integrated Dropdown -->
                 <div class="input-group">
-                    <label for="time">Time</label>
-                    <div class="input-wrapper">
-                        <input type="text" inputmode="decimal" id="time" name="time" placeholder="Enter Time" required
-                            aria-describedby="time-error">
+                    <label for="time">Time Period</label>
+                    <div class="time-input-group">
+                        <div class="input-wrapper">
+                            <input type="text" inputmode="decimal" id="time" name="time"
+                                   placeholder="Enter time" required aria-describedby="time-error">
+                        </div>
+                        <div class="time-divider"></div>
+                        <select id="time_unit" name="time_unit" aria-label="Time Unit">
+                            <option value="Years">Years</option>
+                            <option value="Months">Months</option>
+                            <option value="Days">Days</option>
+                            <option value="Minutes">Minutes</option>
+                            <option value="Seconds">Seconds</option>
+                        </select>
                     </div>
-                    <select id="time_unit" name="time_unit" aria-label="Time Unit">
-                        <option value="Years">Years</option>
-                        <option value="Months">Months</option>
-                        <option value="Days">Days</option>
-                        <option value="Minutes">Minutes</option>
-                        <option value="Seconds">Seconds</option>
-                    </select>
                     <span id="time-error" class="error-text"></span>
                 </div>
+
+                <!-- Interest Type Toggle -->
                 <div class="input-group">
                     <label>Interest Type</label>
                     <div class="slider-toggle">
@@ -70,8 +89,10 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Frequency (for Compound Interest) -->
                 <div class="input-group" id="frequency-group" style="display: none;">
-                    <label for="frequency">Frequency</label>
+                    <label for="frequency">Compounding Frequency</label>
                     <select id="frequency" name="frequency" aria-label="Compounding Frequency">
                         <option value="Annually">Annually</option>
                         <option value="Semi-Annually">Semi-Annually</option>
@@ -79,56 +100,71 @@
                         <option value="Monthly">Monthly</option>
                     </select>
                 </div>
+
+                <!-- Action Buttons -->
                 <div class="button-group">
-                    <button type="submit" tabindex="0">Calculate</button>
-                    <button type="button" id="clear-interest" tabindex="0">Clear</button>
+                    <button type="submit">Calculate</button>
+                    <button type="button" id="clear-interest">Clear</button>
                 </div>
             </form>
+
+            <!-- Progress & Result -->
             <div id="interest-progress" class="progress-bar"></div>
             <div id="interest-result" class="result-box" aria-live="polite"></div>
+
+            <!-- Share Button -->
             <div id="result-actions" class="result-actions" style="display: none;">
                 <button type="button" id="share-result" class="share-btn">
                     <svg class="share-icon" viewBox="0 0 24 24">
-                        <path
-                            d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z" />
+                        <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
                     </svg>
-                    Share Result
+                    Share
                 </button>
             </div>
-        </div>
+        </section>
 
-        <!-- Normal Calculator -->
-        <div id="normal" class="tab-content">
+        <!-- ============================================================
+             Normal Calculator Tab
+             ============================================================ -->
+        <section id="normal" class="tab-content">
             <div class="calculator">
+                <!-- Display -->
                 <div id="calc-display" class="calc-display">
                     <span id="expression"></span>
                     <span id="result" class="highlight">0</span>
                 </div>
+
+                <!-- Keypad -->
                 <div class="calc-buttons">
                     <button class="calc-btn utility" data-value="C">AC</button>
                     <button class="calc-btn backspace" data-value="backspace">⌫</button>
                     <button class="calc-btn utility" data-value="%">%</button>
                     <button class="calc-btn operator" data-value="÷">÷</button>
+
                     <button class="calc-btn number" data-value="7">7</button>
                     <button class="calc-btn number" data-value="8">8</button>
                     <button class="calc-btn number" data-value="9">9</button>
                     <button class="calc-btn operator" data-value="×">×</button>
+
                     <button class="calc-btn number" data-value="4">4</button>
                     <button class="calc-btn number" data-value="5">5</button>
                     <button class="calc-btn number" data-value="6">6</button>
-                    <button class="calc-btn operator" data-value="-">-</button>
+                    <button class="calc-btn operator" data-value="-">−</button>
+
                     <button class="calc-btn number" data-value="1">1</button>
                     <button class="calc-btn number" data-value="2">2</button>
                     <button class="calc-btn number" data-value="3">3</button>
                     <button class="calc-btn operator" data-value="+">+</button>
+
                     <button class="calc-btn number zero" data-value="0">0</button>
                     <button class="calc-btn number" data-value=".">.</button>
                     <button class="calc-btn equals" data-value="=">=</button>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
+
+    <!-- Scripts -->
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
 </body>
-
 </html>

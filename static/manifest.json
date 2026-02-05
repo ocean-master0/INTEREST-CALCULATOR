@@ -1,10 +1,10 @@
 {
   "name": "Advanced Interest Calculator",
-  "short_name": "InterestCalc",
+  "short_name": "Calculator",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0f2b",
-  "theme_color": "#0a0f2b",
+  "background_color": "#0a1628",
+  "theme_color": "#0a1628",
   "orientation": "portrait",
   "icons": [
     {

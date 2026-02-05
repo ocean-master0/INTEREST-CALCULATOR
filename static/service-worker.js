@@ -1,48 +1,63 @@
+/**
+ * Service Worker for PWA Functionality
+ * Handles caching and offline support
+ */
+
+// ============================================================
+// Configuration
+// ============================================================
+
 const CACHE_NAME = 'interest-calc-v1';
+
 const ASSETS_TO_CACHE = [
     '/',
     '/static/css/styles.css',
     '/static/js/scripts.js',
     '/static/manifest.json',
-    'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap',
-    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+    'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap'
 ];
 
-// Install event: Cache assets
+// ============================================================
+// Install Event - Cache Assets
+// ============================================================
+
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            console.log('Opened cache');
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
+        caches.open(CACHE_NAME)
+            .then(cache => {
+                console.log('Caching app assets');
+                return cache.addAll(ASSETS_TO_CACHE);
+            })
     );
 });
 
-// Fetch event: Serve from cache if available, else fetch from network
+// ============================================================
+// Fetch Event - Serve from Cache First
+// ============================================================
+
 self.addEventListener('fetch', (event) => {
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            // Cache hit - return response
-            if (response) {
-                return response;
-            }
-            return fetch(event.request);
-        })
+        caches.match(event.request)
+            .then(cachedResponse => {
+                // Return cached response if available, else fetch from network
+                return cachedResponse || fetch(event.request);
+            })
     );
 });
 
-// Activate event: Clean up old caches
+// ============================================================
+// Activate Event - Clean Old Caches
+// ============================================================
+
 self.addEventListener('activate', (event) => {
-    const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        caches.keys()
+            .then(cacheNames => {
+                return Promise.all(
+                    cacheNames
+                        .filter(name => name !== CACHE_NAME)
+                        .map(name => caches.delete(name))
+                );
+            })
     );
 });
