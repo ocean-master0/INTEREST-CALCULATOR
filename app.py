@@ -4,7 +4,10 @@ A web application for calculating simple and compound interest.
 """
 
 import os
+import time
+from collections import defaultdict
 from flask import Flask, render_template, request, jsonify
+from markupsafe import Markup
 
 # ============================================================
 # Configuration Constants
@@ -12,6 +15,10 @@ from flask import Flask, render_template, request, jsonify
 
 DEFAULT_PORT = 5000
 MAX_TIME_YEARS = 1000
+
+# Rate limiting configuration
+RATE_LIMIT_REQUESTS = 30  # Maximum requests
+RATE_LIMIT_WINDOW = 60    # Per X seconds
 
 # Time unit conversion factors (to years)
 TIME_CONVERSIONS = {
@@ -61,9 +68,32 @@ def calculate_compound_interest(principal: float, rate: float, time: float, freq
 
 
 def format_result(interest_type: str, interest: float, total: float) -> str:
-    """Format the calculation result as HTML."""
+    """
+    Format the calculation result as HTML.
+    
+    Note: This function is safe from XSS as it only uses pre-validated numeric values.
+    The interest and total parameters are always floats from calculation functions.
+    """
     label = "Simple Interest" if interest_type == "simple" else "Compound Interest"
-    return f"{label}: {interest:,.2f} INR<br>Total Amount: {total:,.2f} INR"
+    # Use Markup to indicate this is safe HTML (values are numeric, not user input)
+    return Markup(f"{label}: {interest:,.2f} INR<br>Total Amount: {total:,.2f} INR")
+
+
+# Simple in-memory rate limiter
+rate_limit_store = defaultdict(list)
+
+
+def is_rate_limited(ip: str) -> bool:
+    """Check if an IP address has exceeded the rate limit."""
+    current_time = time.time()
+    # Clean old entries
+    rate_limit_store[ip] = [t for t in rate_limit_store[ip] if current_time - t < RATE_LIMIT_WINDOW]
+    
+    if len(rate_limit_store[ip]) >= RATE_LIMIT_REQUESTS:
+        return True
+    
+    rate_limit_store[ip].append(current_time)
+    return False
 
 
 # ============================================================
@@ -107,6 +137,11 @@ def calculate_interest():
         - interest_type: Type of interest (simple/compound)
         - frequency: Compounding frequency (for compound interest)
     """
+    # Rate limiting check
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if is_rate_limited(client_ip):
+        return jsonify({'error': 'Too many requests. Please wait a moment.'}), 429
+    
     try:
         # Parse form data
         principal = parse_number(request.form['principal'])

@@ -173,14 +173,44 @@ body::after {
 }
 
 /* ============================================================
-   Header
+   Header with Icon Buttons
    ============================================================ */
 
 .header {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 28px;
+}
+
+.icon-btn {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    padding: 0;
+}
+
+.icon-btn:hover {
+    background: var(--glass-bg-hover);
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.icon-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+.hidden {
+    display: none !important;
 }
 
 h1 {
@@ -454,6 +484,7 @@ h1 {
     color: var(--text-secondary);
     z-index: 2;
     transition: color var(--transition-normal);
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -853,5 +884,524 @@ select:focus-visible {
     .share-btn,
     .calc-btn {
         background-color: rgba(20, 40, 70, 0.95);
+    }
+}
+
+/* ============================================================
+   History Sidebar
+   ============================================================ */
+
+.history-sidebar {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 300px;
+    height: 100vh;
+    background: rgba(10, 22, 40, 0.98);
+    -webkit-backdrop-filter: blur(var(--blur-heavy));
+    backdrop-filter: blur(var(--blur-heavy));
+    border-right: 1px solid var(--glass-border);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    transition: left var(--transition-slow);
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.history-sidebar.open {
+    left: 0;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.history-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.history-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 20px;
+    font-size: 14px;
+}
+
+.history-item {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.history-item:hover {
+    background: var(--glass-bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.history-item-type {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-primary);
+    margin-bottom: 6px;
+}
+
+.history-item-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.history-item-date {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.history-item-delete {
+    float: right;
+    background: transparent;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.history-item:hover .history-item-delete {
+    opacity: 1;
+}
+
+.clear-history-btn {
+    margin: 16px;
+    background: var(--danger-bg);
+    color: var(--danger-color);
+    border: 1px solid rgba(252, 129, 129, 0.3);
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.clear-history-btn:hover {
+    background: rgba(252, 129, 129, 0.25);
+}
+
+.history-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--transition-normal);
+}
+
+.history-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ============================================================
+   Loading Skeleton
+   ============================================================ */
+
+.result-skeleton {
+    margin-top: 24px;
+    padding: 28px;
+    background: var(--glass-bg-hover);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--glass-border);
+}
+
+.skeleton-line {
+    height: 20px;
+    background: linear-gradient(90deg, 
+        var(--glass-bg) 25%, 
+        var(--glass-bg-hover) 50%, 
+        var(--glass-bg) 75%);
+    background-size: 200% 100%;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.short {
+    width: 60%;
+    margin: 0 auto;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   Validation Icons
+   ============================================================ */
+
+.input-wrapper .validation-icon {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.input-wrapper.valid .validation-icon::before {
+    content: '✓';
+    color: var(--accent-primary);
+    font-size: 18px;
+    opacity: 1;
+}
+
+.input-wrapper.invalid .validation-icon::before {
+    content: '!';
+    color: var(--danger-color);
+    font-size: 18px;
+    font-weight: bold;
+    opacity: 1;
+}
+
+.input-wrapper.valid .validation-icon,
+.input-wrapper.invalid .validation-icon {
+    opacity: 1;
+}
+
+.input-wrapper.valid input {
+    border-color: var(--accent-primary);
+}
+
+.input-wrapper.invalid input {
+    border-color: var(--danger-color);
+}
+
+/* ============================================================
+   Breakdown Table
+   ============================================================ */
+
+.breakdown-container {
+    margin-top: 24px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    overflow: hidden;
+}
+
+.breakdown-container h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.breakdown-table th,
+.breakdown-table td {
+    padding: 12px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.breakdown-table th {
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 1px;
+    position: sticky;
+    top: 0;
+    background: rgba(10, 22, 40, 0.95);
+}
+
+.breakdown-table th:first-child,
+.breakdown-table td:first-child {
+    text-align: left;
+}
+
+.breakdown-table td {
+    color: var(--text-primary);
+}
+
+.breakdown-table tbody tr:hover {
+    background: var(--glass-bg-hover);
+}
+
+/* ============================================================
+   Chart Container
+   ============================================================ */
+
+.chart-container {
+    margin-top: 24px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    height: 280px;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ============================================================
+   Action Buttons Row
+   ============================================================ */
+
+.result-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    animation: fadeIn 0.5s ease;
+}
+
+.action-btn {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: var(--text-primary);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 50px;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.action-btn:hover {
+    background: var(--glass-bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.action-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.action-btn.whatsapp-btn {
+    border-color: #25D366;
+    color: #25D366;
+}
+
+.action-btn.whatsapp-btn:hover {
+    background: rgba(37, 211, 102, 0.15);
+}
+
+/* ============================================================
+   Comparison Mode Cards
+   ============================================================ */
+
+.compare-results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.compare-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    text-align: center;
+    transition: all var(--transition-normal);
+}
+
+.compare-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glass);
+}
+
+.compare-card h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.compare-card.simple {
+    border-color: rgba(79, 209, 197, 0.3);
+}
+
+.compare-card.compound {
+    border-color: rgba(129, 140, 248, 0.3);
+}
+
+.compare-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent-primary);
+    margin-bottom: 8px;
+}
+
+.compare-card.compound .compare-value {
+    color: #818CF8;
+}
+
+.compare-total {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.compare-difference {
+    grid-column: span 2;
+    background: var(--glass-bg-hover);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+
+.compare-difference span:first-child {
+    color: var(--text-secondary);
+}
+
+.compare-difference span:last-child {
+    font-weight: 600;
+    color: var(--accent-primary);
+}
+
+/* ============================================================
+   EMI Summary Stats
+   ============================================================ */
+
+.emi-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.emi-stat {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.emi-stat-label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.emi-stat-value {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-primary);
+}
+
+/* ============================================================
+   Clear Button Styling for All Forms
+   ============================================================ */
+
+#clear-interest,
+#clear-emi,
+#clear-compare {
+    background: var(--danger-bg);
+    color: var(--danger-color);
+    border: 1px solid rgba(252, 129, 129, 0.3);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+#clear-interest:hover,
+#clear-emi:hover,
+#clear-compare:hover {
+    background: rgba(252, 129, 129, 0.25);
+}
+
+/* ============================================================
+   Responsive Adjustments for New Features
+   ============================================================ */
+
+@media (max-width: 480px) {
+    .history-sidebar {
+        width: 280px;
+        left: -280px;
+    }
+    
+    .compare-results {
+        grid-template-columns: 1fr;
+    }
+    
+    .compare-difference {
+        grid-column: span 1;
+    }
+    
+    .emi-summary {
+        grid-template-columns: 1fr;
+    }
+    
+    .result-actions {
+        flex-direction: column;
+    }
+    
+    .action-btn {
+        width: 100%;
+    }
+    
+    .breakdown-table {
+        font-size: 12px;
+    }
+    
+    .breakdown-table th,
+    .breakdown-table td {
+        padding: 10px 6px;
     }
 }

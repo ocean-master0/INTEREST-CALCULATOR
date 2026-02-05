@@ -16,20 +16,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Chart.js for Interactive Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- jsPDF for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <!-- Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
+    <!-- History Sidebar -->
+    <aside id="history-sidebar" class="history-sidebar">
+        <div class="history-header">
+            <h2>Calculation History</h2>
+            <button id="close-history" class="icon-btn" aria-label="Close history">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+        <div id="history-list" class="history-list">
+            <p class="history-empty">No calculations yet</p>
+        </div>
+        <button id="clear-history" class="clear-history-btn">Clear All History</button>
+    </aside>
+    
+    <!-- History Overlay -->
+    <div id="history-overlay" class="history-overlay"></div>
+
     <div class="container">
         <!-- Header -->
         <header class="header">
+            <button id="open-history" class="icon-btn history-toggle" aria-label="Open history">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+            </button>
             <h1>Advanced Calculator</h1>
+            <button id="sound-toggle" class="icon-btn sound-toggle" aria-label="Toggle sound">
+                <svg id="sound-on-icon" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <svg id="sound-off-icon" class="hidden" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+            </button>
         </header>
 
         <!-- Tab Navigation -->
         <nav class="tab-group">
-            <button class="tab-btn active" data-tab="interest">Interest Calculator</button>
-            <button class="tab-btn" data-tab="normal">Normal Calculator</button>
+            <button class="tab-btn active" data-tab="interest">Interest</button>
+            <button class="tab-btn" data-tab="emi">EMI</button>
+            <button class="tab-btn" data-tab="compare">Compare</button>
+            <button class="tab-btn" data-tab="normal">Calc</button>
         </nav>
 
         <!-- ============================================================
@@ -43,6 +75,7 @@
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="principal" name="principal"
                                placeholder="Enter amount" required aria-describedby="principal-error">
+                        <span class="validation-icon"></span>
                     </div>
                     <span id="principal-error" class="error-text"></span>
                 </div>
@@ -53,6 +86,7 @@
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="rate" name="rate"
                                placeholder="Enter rate" required aria-describedby="rate-error">
+                        <span class="validation-icon"></span>
                     </div>
                     <span id="rate-error" class="error-text"></span>
                 </div>
@@ -64,6 +98,7 @@
                         <div class="input-wrapper">
                             <input type="text" inputmode="decimal" id="time" name="time"
                                    placeholder="Enter time" required aria-describedby="time-error">
+                            <span class="validation-icon"></span>
                         </div>
                         <div class="time-divider"></div>
                         <select id="time_unit" name="time_unit" aria-label="Time Unit">
@@ -108,18 +143,225 @@
                 </div>
             </form>
 
-            <!-- Progress & Result -->
+            <!-- Progress Bar -->
             <div id="interest-progress" class="progress-bar"></div>
+            
+            <!-- Loading Skeleton -->
+            <div id="interest-skeleton" class="result-skeleton hidden">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+            </div>
+            
+            <!-- Result Box -->
             <div id="interest-result" class="result-box" aria-live="polite"></div>
+            
+            <!-- Year-wise Breakdown Table -->
+            <div id="breakdown-container" class="breakdown-container hidden">
+                <h3>Year-wise Breakdown</h3>
+                <div class="table-wrapper">
+                    <table id="breakdown-table" class="breakdown-table">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Opening</th>
+                                <th>Interest</th>
+                                <th>Closing</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Interactive Chart -->
+            <div id="chart-container" class="chart-container hidden">
+                <canvas id="interest-chart"></canvas>
+            </div>
 
-            <!-- Share Button -->
-            <div id="result-actions" class="result-actions" style="display: none;">
-                <button type="button" id="share-result" class="share-btn">
-                    <svg class="share-icon" viewBox="0 0 24 24">
-                        <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
-                    </svg>
+            <!-- Action Buttons -->
+            <div id="result-actions" class="result-actions hidden">
+                <button type="button" id="share-result" class="action-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
                     Share
                 </button>
+                <button type="button" id="whatsapp-share" class="action-btn whatsapp-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    WhatsApp
+                </button>
+                <button type="button" id="download-pdf" class="action-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7v4h-2v-4H9l4-4 4 4h-4z"/></svg>
+                    PDF
+                </button>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             EMI Calculator Tab
+             ============================================================ -->
+        <section id="emi" class="tab-content">
+            <form id="emi-form" aria-label="EMI Calculator Form">
+                <!-- Loan Amount -->
+                <div class="input-group">
+                    <label for="emi-principal">Loan Amount (INR)</label>
+                    <div class="input-wrapper">
+                        <input type="text" inputmode="decimal" id="emi-principal" name="emi-principal"
+                               placeholder="Enter loan amount" required>
+                        <span class="validation-icon"></span>
+                    </div>
+                    <span id="emi-principal-error" class="error-text"></span>
+                </div>
+
+                <!-- Interest Rate -->
+                <div class="input-group">
+                    <label for="emi-rate">Interest Rate (% p.a.)</label>
+                    <div class="input-wrapper">
+                        <input type="text" inputmode="decimal" id="emi-rate" name="emi-rate"
+                               placeholder="Enter interest rate" required>
+                        <span class="validation-icon"></span>
+                    </div>
+                    <span id="emi-rate-error" class="error-text"></span>
+                </div>
+
+                <!-- Loan Tenure -->
+                <div class="input-group">
+                    <label for="emi-tenure">Loan Tenure</label>
+                    <div class="time-input-group">
+                        <div class="input-wrapper">
+                            <input type="text" inputmode="decimal" id="emi-tenure" name="emi-tenure"
+                                   placeholder="Enter tenure" required>
+                            <span class="validation-icon"></span>
+                        </div>
+                        <div class="time-divider"></div>
+                        <select id="emi-tenure-unit" name="emi-tenure-unit" aria-label="Tenure Unit">
+                            <option value="Years">Years</option>
+                            <option value="Months">Months</option>
+                        </select>
+                    </div>
+                    <span id="emi-tenure-error" class="error-text"></span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="button-group">
+                    <button type="submit">Calculate EMI</button>
+                    <button type="button" id="clear-emi">Clear</button>
+                </div>
+            </form>
+
+            <!-- Loading Skeleton -->
+            <div id="emi-skeleton" class="result-skeleton hidden">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+            </div>
+
+            <!-- EMI Result -->
+            <div id="emi-result" class="result-box" aria-live="polite"></div>
+            
+            <!-- EMI Breakdown -->
+            <div id="emi-breakdown" class="emi-summary hidden">
+                <div class="emi-stat">
+                    <span class="emi-stat-label">Monthly EMI</span>
+                    <span id="emi-monthly" class="emi-stat-value">₹0</span>
+                </div>
+                <div class="emi-stat">
+                    <span class="emi-stat-label">Total Interest</span>
+                    <span id="emi-total-interest" class="emi-stat-value">₹0</span>
+                </div>
+                <div class="emi-stat">
+                    <span class="emi-stat-label">Total Payment</span>
+                    <span id="emi-total-payment" class="emi-stat-value">₹0</span>
+                </div>
+            </div>
+            
+            <!-- EMI Chart -->
+            <div id="emi-chart-container" class="chart-container hidden">
+                <canvas id="emi-chart"></canvas>
+            </div>
+
+            <!-- EMI Actions -->
+            <div id="emi-actions" class="result-actions hidden">
+                <button type="button" id="emi-whatsapp" class="action-btn whatsapp-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    WhatsApp
+                </button>
+                <button type="button" id="emi-pdf" class="action-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7v4h-2v-4H9l4-4 4 4h-4z"/></svg>
+                    PDF
+                </button>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             Comparison Mode Tab
+             ============================================================ -->
+        <section id="compare" class="tab-content">
+            <form id="compare-form" aria-label="Interest Comparison Form">
+                <!-- Principal -->
+                <div class="input-group">
+                    <label for="compare-principal">Principal (INR)</label>
+                    <div class="input-wrapper">
+                        <input type="text" inputmode="decimal" id="compare-principal" name="compare-principal"
+                               placeholder="Enter amount" required>
+                        <span class="validation-icon"></span>
+                    </div>
+                    <span id="compare-principal-error" class="error-text"></span>
+                </div>
+
+                <!-- Rate -->
+                <div class="input-group">
+                    <label for="compare-rate">Rate (% p.a.)</label>
+                    <div class="input-wrapper">
+                        <input type="text" inputmode="decimal" id="compare-rate" name="compare-rate"
+                               placeholder="Enter rate" required>
+                        <span class="validation-icon"></span>
+                    </div>
+                    <span id="compare-rate-error" class="error-text"></span>
+                </div>
+
+                <!-- Time -->
+                <div class="input-group">
+                    <label for="compare-time">Time Period (Years)</label>
+                    <div class="input-wrapper">
+                        <input type="text" inputmode="decimal" id="compare-time" name="compare-time"
+                               placeholder="Enter years" required>
+                        <span class="validation-icon"></span>
+                    </div>
+                    <span id="compare-time-error" class="error-text"></span>
+                </div>
+
+                <!-- Action Button -->
+                <div class="button-group">
+                    <button type="submit">Compare Interest</button>
+                    <button type="button" id="clear-compare">Clear</button>
+                </div>
+            </form>
+
+            <!-- Loading Skeleton -->
+            <div id="compare-skeleton" class="result-skeleton hidden">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+            </div>
+
+            <!-- Comparison Results -->
+            <div id="compare-results" class="compare-results hidden">
+                <div class="compare-card simple">
+                    <h3>Simple Interest</h3>
+                    <div class="compare-value" id="compare-simple-interest">₹0</div>
+                    <div class="compare-total">Total: <span id="compare-simple-total">₹0</span></div>
+                </div>
+                <div class="compare-card compound">
+                    <h3>Compound Interest</h3>
+                    <div class="compare-value" id="compare-compound-interest">₹0</div>
+                    <div class="compare-total">Total: <span id="compare-compound-total">₹0</span></div>
+                </div>
+                <div class="compare-difference">
+                    <span>Difference:</span>
+                    <span id="compare-difference-value">₹0</span>
+                </div>
+            </div>
+            
+            <!-- Comparison Chart -->
+            <div id="compare-chart-container" class="chart-container hidden">
+                <canvas id="compare-chart"></canvas>
             </div>
         </section>
 
@@ -163,6 +405,11 @@
             </div>
         </section>
     </div>
+
+    <!-- Audio for Sound Effects -->
+    <audio id="click-sound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAkAJpPg67teleAkAJo=" type="audio/wav">
+    </audio>
 
     <!-- Scripts -->
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
