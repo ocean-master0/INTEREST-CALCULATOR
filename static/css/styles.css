@@ -1193,8 +1193,8 @@ button[type="submit"]:active,
 .calculator {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 130px);
-    min-height: 450px;
+    height: auto;
+    min-height: 0;
 }
 
 /* Calculator Display - Glass Panel */
@@ -1253,14 +1253,15 @@ button[type="submit"]:active,
 .calc-buttons {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 5px;
-    flex: 1;
+    gap: 4px;
+    grid-auto-rows: 54px;
+    flex: 0 0 auto;
 }
 
 .calc-btn {
-    padding: 14px 6px;
-    border-radius: 14px;
-    font-size: 17px;
+    padding: 10px 5px;
+    border-radius: 12px;
+    font-size: 15px;
     font-weight: 600;
     font-family: var(--mono);
     text-align: center;
@@ -1272,7 +1273,7 @@ button[type="submit"]:active,
     border: 1px solid var(--border);
     transition: all var(--transition-fast);
     cursor: pointer;
-    min-height: 48px;
+    min-height: 54px;
 }
 
 .calc-btn:hover {
@@ -1289,7 +1290,7 @@ button[type="submit"]:active,
     background: rgba(104,186,127,0.15);
     color: var(--sage);
     border-color: rgba(104,186,127,0.25);
-    font-size: 19px;
+    font-size: 17px;
 }
 
 .calc-btn.operator:hover {
@@ -1300,7 +1301,7 @@ button[type="submit"]:active,
 .calc-btn.utility {
     background: rgba(207,255,220,0.06);
     color: var(--sage);
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .calc-btn.utility:hover {
@@ -1312,7 +1313,7 @@ button[type="submit"]:active,
     background: var(--danger-bg);
     color: var(--danger-color);
     border-color: rgba(255,123,123,0.2);
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .calc-btn.backspace:hover {
@@ -1325,7 +1326,7 @@ button[type="submit"]:active,
     color: var(--mint);
     border: none;
     box-shadow: var(--shadow-button);
-    font-size: 20px;
+    font-size: 18px;
 }
 
 .calc-btn.equals:hover {
@@ -1336,7 +1337,7 @@ button[type="submit"]:active,
 .calc-btn.zero {
     grid-column: span 2;
     aspect-ratio: auto;
-    padding: 14px 6px;
+    padding: 10px 5px;
 }
 
 /* ============================================================
@@ -1395,13 +1396,14 @@ select:focus-visible {
     }
 
     .calc-buttons {
-        gap: 5px;
+        gap: 4px;
+        grid-auto-rows: 46px;
     }
 
     .calc-btn {
-        font-size: 15px;
-        padding: 12px 5px;
-        min-height: 42px;
+        font-size: 14px;
+        padding: 8px 4px;
+        min-height: 46px;
     }
 
     #result {
