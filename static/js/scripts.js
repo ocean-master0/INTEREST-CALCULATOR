@@ -79,7 +79,19 @@ document.addEventListener('DOMContentLoaded', () => {
         soundToggle: document.getElementById('sound-toggle'),
         soundOnIcon: document.getElementById('sound-on-icon'),
         soundOffIcon: document.getElementById('sound-off-icon'),
-        clickSound: document.getElementById('click-sound')
+        clickSound: document.getElementById('click-sound'),
+        
+        // Date Mode
+        dateModeToggle: document.getElementById('date-mode-toggle'),
+        togglePill: document.getElementById('toggle-pill'),
+        dtIcon: document.getElementById('dt-icon'),
+        manualTimeGroup: document.getElementById('manual-time-group'),
+        dateRangeGroup: document.getElementById('date-range-group'),
+        startDateInput: document.getElementById('start-date'),
+        endDateInput: document.getElementById('end-date'),
+        calculatedPeriod: document.getElementById('calculated-period'),
+        periodText: document.getElementById('period-text'),
+        periodSubText: document.getElementById('period-sub-text')
     };
 
     // ============================================================
@@ -98,7 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEmiResult: null,
         interestChart: null,
         emiChart: null,
-        compareChart: null
+        compareChart: null,
+        isDateMode: false
     };
     
     // Initialize sound icon
@@ -130,6 +143,118 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('soundEnabled', appState.soundEnabled);
         updateSoundIcon();
         playClickSound();
+    });
+
+    // ============================================================
+    // Date Mode Toggle
+    // ============================================================
+    
+    elements.dateModeToggle?.addEventListener('click', () => {
+        playClickSound();
+        appState.isDateMode = !appState.isDateMode;
+        elements.dateModeToggle.setAttribute('aria-checked', appState.isDateMode);
+        elements.togglePill?.classList.toggle('on', appState.isDateMode);
+        elements.dateModeToggle?.classList.toggle('on', appState.isDateMode);
+        elements.dtIcon?.classList.toggle('on', appState.isDateMode);
+        
+        if (appState.isDateMode) {
+            elements.manualTimeGroup?.classList.add('hidden');
+            elements.dateRangeGroup?.classList.add('visible');
+            // Set default dates
+            const today = new Date();
+            if (elements.startDateInput && !elements.startDateInput.value) {
+                elements.startDateInput.value = today.toISOString().split('T')[0];
+            }
+            if (elements.endDateInput && !elements.endDateInput.value) {
+                const nextYear = new Date(today);
+                nextYear.setFullYear(nextYear.getFullYear() + 1);
+                elements.endDateInput.value = nextYear.toISOString().split('T')[0];
+            }
+            calculateDateDiff();
+        } else {
+            elements.manualTimeGroup?.classList.remove('hidden');
+            elements.dateRangeGroup?.classList.remove('visible');
+            elements.calculatedPeriod?.classList.add('hidden');
+        }
+    });
+    
+    function calculateDateDiff() {
+        if (!elements.startDateInput?.value || !elements.endDateInput?.value) return null;
+        
+        const start = new Date(elements.startDateInput.value);
+        const end = new Date(elements.endDateInput.value);
+        
+        if (end <= start) {
+            elements.calculatedPeriod?.classList.add('hidden');
+            return null;
+        }
+        
+        const diffMs = end - start;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffYears = diffDays / 365;
+        
+        elements.calculatedPeriod?.classList.remove('hidden');
+        
+        if (diffDays < 30) {
+            elements.periodText.textContent = `${diffDays} days`;
+        } else if (diffDays < 365) {
+            const months = Math.round((diffDays / 30) * 10) / 10;
+            elements.periodText.textContent = `${months} months  ·  ${diffDays} days`;
+        } else {
+            const yrs = Math.floor(diffYears);
+            const remDays = diffDays - (yrs * 365);
+            let text = `${yrs} Year${yrs > 1 ? 's' : ''}`;
+            if (remDays > 0) text += `  ·  ${diffDays.toLocaleString('en-IN')} days`;
+            elements.periodText.textContent = text;
+        }
+        elements.periodSubText.textContent = 'Auto-calculated from selected dates';
+        
+        // Set hidden time fields for backend
+        document.getElementById('time').value = diffDays;
+        document.getElementById('time_unit').value = 'Days';
+        
+        return diffDays;
+    }
+    
+    elements.startDateInput?.addEventListener('change', calculateDateDiff);
+    elements.endDateInput?.addEventListener('change', calculateDateDiff);
+
+    // ============================================================
+    // Frequency Chips
+    // ============================================================
+    
+    document.querySelectorAll('.freq-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            playClickSound();
+            document.querySelectorAll('.freq-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            const freqInput = document.getElementById('frequency');
+            if (freqInput) freqInput.value = chip.dataset.value;
+        });
+    });
+
+    // ============================================================
+    // Bottom Tab Bar Navigation
+    // ============================================================
+    
+    document.querySelectorAll('.tab-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            playClickSound();
+            
+            const currentTab = document.querySelector('.tab-content.active')?.id;
+            if (currentTab === 'interest' && appState.interestChart) {
+                appState.interestChart.destroy(); appState.interestChart = null;
+            } else if (currentTab === 'emi' && appState.emiChart) {
+                appState.emiChart.destroy(); appState.emiChart = null;
+            } else if (currentTab === 'compare' && appState.compareChart) {
+                appState.compareChart.destroy(); appState.compareChart = null;
+            }
+            
+            document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab)?.classList.add('active');
+        });
     });
 
     // ============================================================
@@ -205,33 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial render
     renderHistory();
 
-    // ============================================================
-    // Tab Navigation
-    // ============================================================
-    
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            playClickSound();
-            
-            // Destroy charts when switching tabs to prevent memory leaks
-            const currentTab = document.querySelector('.tab-content.active')?.id;
-            if (currentTab === 'interest' && appState.interestChart) {
-                appState.interestChart.destroy();
-                appState.interestChart = null;
-            } else if (currentTab === 'emi' && appState.emiChart) {
-                appState.emiChart.destroy();
-                appState.emiChart = null;
-            } else if (currentTab === 'compare' && appState.compareChart) {
-                appState.compareChart.destroy();
-                appState.compareChart = null;
-            }
-            
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById(btn.dataset.tab).classList.add('active');
-        });
-    });
+    // Tab Navigation handled by Bottom Tab Bar above
 
     // ============================================================
     // Input Validation & Formatting
@@ -309,6 +408,15 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.interestForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         playClickSound();
+        
+        // Date mode validation
+        if (appState.isDateMode) {
+            const diff = calculateDateDiff();
+            if (!diff || diff <= 0) {
+                elements.interestResult.innerHTML = '<p class="error">Please select a valid date range</p>';
+                return;
+            }
+        }
         
         // Show skeleton
         elements.interestSkeleton?.classList.remove('hidden');
@@ -463,32 +571,101 @@ document.addEventListener('DOMContentLoaded', () => {
                     {
                         label: 'Principal',
                         data: principalData,
-                        borderColor: '#4FD1C5',
-                        backgroundColor: 'rgba(79, 209, 197, 0.1)',
+                        borderColor: '#68BA7F',
+                        borderWidth: 2.5,
+                        backgroundColor: (context) => {
+                            const chart = context.chart;
+                            const { ctx: c, chartArea } = chart;
+                            if (!chartArea) return 'rgba(104,186,127,0.1)';
+                            const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            g.addColorStop(0, 'rgba(104,186,127,0.25)');
+                            g.addColorStop(1, 'rgba(104,186,127,0.02)');
+                            return g;
+                        },
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#68BA7F',
+                        pointBorderColor: '#253D2C',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 7,
+                        pointHoverBackgroundColor: '#CFFFDC',
+                        pointHoverBorderColor: '#2E6F40',
+                        pointHoverBorderWidth: 3,
+                        borderDash: [6, 3]
                     },
                     {
                         label: 'Total Amount',
                         data: totalData,
-                        borderColor: '#818CF8',
-                        backgroundColor: 'rgba(129, 140, 248, 0.1)',
+                        borderColor: '#CFFFDC',
+                        borderWidth: 3,
+                        backgroundColor: (context) => {
+                            const chart = context.chart;
+                            const { ctx: c, chartArea } = chart;
+                            if (!chartArea) return 'rgba(207,255,220,0.1)';
+                            const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            g.addColorStop(0, 'rgba(207,255,220,0.3)');
+                            g.addColorStop(0.7, 'rgba(46,111,64,0.08)');
+                            g.addColorStop(1, 'rgba(46,111,64,0.01)');
+                            return g;
+                        },
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#CFFFDC',
+                        pointBorderColor: '#253D2C',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#68BA7F',
+                        pointHoverBorderWidth: 3
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
                 plugins: {
-                    legend: { 
-                        labels: { color: '#a0aec0' }
+                    legend: {
+                        labels: {
+                            color: '#CFFFDC',
+                            font: { size: 11, weight: '600', family: 'DM Sans' },
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            padding: 16
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(37,61,44,0.92)',
+                        titleColor: '#CFFFDC',
+                        bodyColor: '#68BA7F',
+                        borderColor: 'rgba(104,186,127,0.3)',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        padding: 12,
+                        titleFont: { size: 12, weight: '700', family: 'DM Sans' },
+                        bodyFont: { size: 11, family: 'DM Mono' },
+                        displayColors: true,
+                        boxPadding: 4,
+                        callbacks: {
+                            label: (item) => `${item.dataset.label}: Rs. ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
+                        }
                     }
                 },
                 scales: {
-                    x: { ticks: { color: '#718096' }, grid: { color: 'rgba(255,255,255,0.1)' }},
-                    y: { ticks: { color: '#718096' }, grid: { color: 'rgba(255,255,255,0.1)' }}
+                    x: {
+                        ticks: { color: '#68BA7F', font: { size: 10, family: 'DM Sans' } },
+                        grid: { color: 'rgba(104,186,127,0.08)', drawBorder: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#68BA7F',
+                            font: { size: 10, family: 'DM Mono' },
+                            callback: (v) => v >= 100000 ? (v/100000).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v
+                        },
+                        grid: { color: 'rgba(104,186,127,0.08)', drawBorder: false }
+                    }
                 }
             }
         });
@@ -572,17 +749,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 labels: ['Principal', 'Interest'],
                 datasets: [{
                     data: [principal, interest],
-                    backgroundColor: ['#4FD1C5', '#818CF8'],
-                    borderWidth: 0
+                    backgroundColor: ['#68BA7F', '#2E6F40'],
+                    borderWidth: 0,
+                    hoverBackgroundColor: ['#CFFFDC', '#68BA7F'],
+                    hoverOffset: 8
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '62%',
                 plugins: {
-                    legend: { 
+                    legend: {
                         position: 'bottom',
-                        labels: { color: '#a0aec0', padding: 20 }
+                        labels: {
+                            color: '#CFFFDC',
+                            font: { size: 11, weight: '600', family: 'DM Sans' },
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(37,61,44,0.92)',
+                        titleColor: '#CFFFDC',
+                        bodyColor: '#68BA7F',
+                        borderColor: 'rgba(104,186,127,0.3)',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        padding: 12,
+                        titleFont: { size: 12, weight: '700', family: 'DM Sans' },
+                        bodyFont: { size: 11, family: 'DM Mono' },
+                        callbacks: {
+                            label: (item) => ` Rs. ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})} (${((item.raw / (principal + interest)) * 100).toFixed(1)}%)`
+                        }
                     }
                 }
             }
@@ -676,30 +876,102 @@ document.addEventListener('DOMContentLoaded', () => {
                     {
                         label: 'Simple Interest',
                         data: simpleData,
-                        borderColor: '#4FD1C5',
-                        backgroundColor: 'rgba(79, 209, 197, 0.1)',
+                        borderColor: '#68BA7F',
+                        borderWidth: 2.5,
+                        backgroundColor: (context) => {
+                            const chart = context.chart;
+                            const { ctx: c, chartArea } = chart;
+                            if (!chartArea) return 'rgba(104,186,127,0.1)';
+                            const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            g.addColorStop(0, 'rgba(104,186,127,0.3)');
+                            g.addColorStop(0.6, 'rgba(104,186,127,0.08)');
+                            g.addColorStop(1, 'rgba(104,186,127,0.01)');
+                            return g;
+                        },
                         fill: true,
-                        tension: 0.4
+                        tension: 0.35,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#68BA7F',
+                        pointBorderColor: '#253D2C',
+                        pointBorderWidth: 2.5,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#CFFFDC',
+                        pointHoverBorderColor: '#2E6F40',
+                        pointHoverBorderWidth: 3,
+                        borderDash: [6, 3]
                     },
                     {
                         label: 'Compound Interest',
                         data: compoundData,
-                        borderColor: '#818CF8',
-                        backgroundColor: 'rgba(129, 140, 248, 0.1)',
+                        borderColor: '#CFFFDC',
+                        borderWidth: 3,
+                        backgroundColor: (context) => {
+                            const chart = context.chart;
+                            const { ctx: c, chartArea } = chart;
+                            if (!chartArea) return 'rgba(207,255,220,0.1)';
+                            const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            g.addColorStop(0, 'rgba(207,255,220,0.35)');
+                            g.addColorStop(0.5, 'rgba(104,186,127,0.12)');
+                            g.addColorStop(1, 'rgba(46,111,64,0.02)');
+                            return g;
+                        },
                         fill: true,
-                        tension: 0.4
+                        tension: 0.35,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#CFFFDC',
+                        pointBorderColor: '#253D2C',
+                        pointBorderWidth: 2.5,
+                        pointHoverRadius: 9,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#68BA7F',
+                        pointHoverBorderWidth: 3
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
                 plugins: {
-                    legend: { labels: { color: '#a0aec0' }}
+                    legend: {
+                        labels: {
+                            color: '#CFFFDC',
+                            font: { size: 11, weight: '600', family: 'DM Sans' },
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            padding: 16
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(37,61,44,0.92)',
+                        titleColor: '#CFFFDC',
+                        bodyColor: '#68BA7F',
+                        borderColor: 'rgba(104,186,127,0.3)',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        padding: 12,
+                        titleFont: { size: 12, weight: '700', family: 'DM Sans' },
+                        bodyFont: { size: 11, family: 'DM Mono' },
+                        displayColors: true,
+                        boxPadding: 4,
+                        callbacks: {
+                            label: (item) => `${item.dataset.label}: Rs. ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
+                        }
+                    }
                 },
                 scales: {
-                    x: { ticks: { color: '#718096' }, grid: { color: 'rgba(255,255,255,0.1)' }},
-                    y: { ticks: { color: '#718096' }, grid: { color: 'rgba(255,255,255,0.1)' }}
+                    x: {
+                        ticks: { color: '#68BA7F', font: { size: 10, family: 'DM Sans' } },
+                        grid: { color: 'rgba(104,186,127,0.08)', drawBorder: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#68BA7F',
+                            font: { size: 10, family: 'DM Mono' },
+                            callback: (v) => v >= 100000 ? (v/100000).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v
+                        },
+                        grid: { color: 'rgba(104,186,127,0.08)', drawBorder: false }
+                    }
                 }
             }
         });
@@ -785,7 +1057,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     function generatePDF(type) {
-        // Check for jsPDF availability (loaded from CDN as window.jspdf)
         if (typeof window.jspdf === 'undefined' && typeof jspdf === 'undefined') {
             alert('PDF generation not available. Please check your internet connection.');
             return;
@@ -794,347 +1065,275 @@ document.addEventListener('DOMContentLoaded', () => {
         const jspdfLib = window.jspdf || jspdf;
         const { jsPDF } = jspdfLib;
         const doc = new jsPDF();
+        const pw = 210; // page width
         
-        // Premium Color Palette
-        const colors = {
-            primary: [10, 22, 40],        // Dark navy background
-            accent: [79, 209, 197],       // Teal accent
-            accentDark: [56, 178, 172],   // Darker teal
-            gold: [255, 193, 7],          // Gold highlight
-            white: [255, 255, 255],
-            lightGray: [240, 244, 248],
-            mediumGray: [120, 130, 150],
-            darkText: [30, 40, 60],
-            success: [16, 185, 129],      // Green
-            warning: [245, 158, 11],      // Orange
+        // Lush Forest Palette for PDF
+        const c = {
+            deep:    [37, 61, 44],     // #253D2C
+            forest:  [46, 111, 64],    // #2E6F40
+            sage:    [104, 186, 127],  // #68BA7F
+            mint:    [207, 255, 220],  // #CFFFDC
+            white:   [255, 255, 255],
+            offWhite:[248, 253, 249],
+            light:   [235, 248, 238],
+            divider: [210, 235, 216],
+            text:    [37, 61, 44],
+            muted:   [110, 140, 118],
+            gold:    [218, 175, 70],
         };
         
-        // Helper: Draw rounded rectangle
-        const drawRoundedRect = (x, y, w, h, r, fill, stroke = null) => {
-            doc.setFillColor(...fill);
-            if (stroke) doc.setDrawColor(...stroke);
-            doc.roundedRect(x, y, w, h, r, r, stroke ? 'FD' : 'F');
-        };
+        // ── Header ────────────────────────────────
+        // Deep green header band
+        doc.setFillColor(...c.deep);
+        doc.rect(0, 0, pw, 48, 'F');
         
-        // Helper: Draw gradient-like header (simulated with rectangles)
-        const drawHeader = () => {
-            // Main header background
-            doc.setFillColor(...colors.primary);
-            doc.rect(0, 0, 210, 55, 'F');
-            
-            // Accent bar at bottom of header
-            doc.setFillColor(...colors.accent);
-            doc.rect(0, 52, 210, 3, 'F');
-            
-            // Decorative circles (subtle)
-            doc.setFillColor(30, 45, 70);
-            doc.circle(180, 15, 35, 'F');
-            doc.setFillColor(25, 40, 65);
-            doc.circle(195, 45, 20, 'F');
-            
-            // Logo/Icon area - Calculator symbol
-            doc.setFillColor(...colors.accent);
-            doc.roundedRect(15, 12, 30, 30, 4, 4, 'F');
-            
-            // Calculator icon lines
-            doc.setFillColor(...colors.primary);
-            doc.rect(20, 17, 20, 8, 'F'); // Screen
-            doc.setFillColor(...colors.white);
-            doc.rect(21, 18, 18, 6, 'F'); // Screen inner
-            
-            // Calculator buttons
-            doc.setFillColor(...colors.primary);
-            for (let row = 0; row < 2; row++) {
-                for (let col = 0; col < 3; col++) {
-                    doc.rect(20 + col * 7, 28 + row * 6, 5, 4, 'F');
-                }
-            }
-            
-            // Title text
+        // Thin accent line below header
+        doc.setFillColor(...c.sage);
+        doc.rect(0, 48, pw, 1.5, 'F');
+        
+        // Decorative circles (subtle)
+        doc.setFillColor(42, 72, 50);
+        doc.circle(185, 10, 28, 'F');
+        doc.setFillColor(40, 68, 48);
+        doc.circle(198, 38, 16, 'F');
+        
+        // Logo icon
+        doc.setFillColor(...c.sage);
+        doc.roundedRect(18, 10, 28, 28, 5, 5, 'F');
+        doc.setFillColor(...c.deep);
+        doc.roundedRect(23, 15, 18, 8, 2, 2, 'F');
+        doc.setFillColor(...c.white);
+        doc.roundedRect(24, 16, 16, 6, 1, 1, 'F');
+        doc.setFillColor(...c.deep);
+        for (let r = 0; r < 2; r++)
+            for (let cl = 0; cl < 3; cl++)
+                doc.roundedRect(23 + cl * 6.5, 26 + r * 5.5, 4.5, 3.5, 1, 1, 'F');
+        
+        // Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(...c.white);
+        doc.text('Financial Report', 54, 24);
+        
+        // Subtitle
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...c.sage);
+        doc.text('Interest Calculator  ·  Premium Statement', 54, 33);
+        
+        // Date pill
+        const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        doc.setFillColor(...c.forest);
+        doc.roundedRect(140, 14, 52, 10, 3, 3, 'F');
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...c.mint);
+        doc.text(dateStr, 166, 20.5, { align: 'center' });
+        
+        // ── Helpers ────────────────────────────────
+        const sectionHead = (y, title) => {
+            doc.setFillColor(...c.deep);
+            doc.roundedRect(18, y, 174, 9, 2, 2, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(22);
-            doc.setTextColor(...colors.white);
-            doc.text('Financial Calculator', 55, 25);
-            
-            // Subtitle
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            doc.setTextColor(...colors.accent);
-            doc.text('Premium Calculation Report', 55, 35);
-            
-            // Date badge
-            const dateStr = new Date().toLocaleDateString('en-IN', { 
-                day: '2-digit', month: 'short', year: 'numeric' 
-            });
-            doc.setFillColor(...colors.accent);
-            doc.roundedRect(140, 28, 55, 12, 3, 3, 'F');
             doc.setFontSize(9);
-            doc.setTextColor(...colors.primary);
-            doc.text(dateStr, 167.5, 35.5, { align: 'center' });
+            doc.setTextColor(...c.mint);
+            doc.text(title, 24, y + 6.5);
+            return y + 14;
         };
         
-        // Helper: Draw info card
-        const drawInfoCard = (x, y, w, h, title, value, icon, color) => {
-            // Card background
-            drawRoundedRect(x, y, w, h, 4, colors.white, colors.lightGray);
-            
-            // Colored left accent bar
-            doc.setFillColor(...color);
-            doc.roundedRect(x, y, 4, h, 2, 2, 'F');
-            
-            // Icon circle
-            doc.setFillColor(...color);
-            doc.circle(x + 18, y + h/2, 8, 'F');
-            doc.setTextColor(...colors.white);
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'bold');
-            doc.text(icon, x + 18, y + h/2 + 3.5, { align: 'center' });
-            
-            // Title
+        const dataRow = (y, label, value, alt = false) => {
+            if (alt) { doc.setFillColor(...c.light); doc.rect(18, y - 4.5, 174, 10, 'F'); }
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(...colors.mediumGray);
-            doc.text(title, x + 32, y + 12);
-            
-            // Value
+            doc.setFontSize(9.5);
+            doc.setTextColor(...c.muted);
+            doc.text(label, 24, y);
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(14);
-            doc.setTextColor(...colors.darkText);
-            doc.text(value, x + 32, y + 24);
+            doc.setTextColor(...c.text);
+            doc.text(value, 188, y, { align: 'right' });
+            return y + 11;
         };
         
-        // Helper: Draw section header
-        const drawSectionHeader = (y, title) => {
-            doc.setFillColor(...colors.primary);
-            doc.roundedRect(15, y, 180, 10, 2, 2, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(11);
-            doc.setTextColor(...colors.white);
-            doc.text(title, 20, y + 7);
-            return y + 15;
-        };
-        
-        // Helper: Draw data row
-        const drawDataRow = (y, label, value, isAlt = false) => {
-            if (isAlt) {
-                doc.setFillColor(...colors.lightGray);
-                doc.rect(15, y - 5, 180, 10, 'F');
+        const resultCard = (y, label, value, highlight = false) => {
+            if (highlight) {
+                doc.setFillColor(...c.forest);
+                doc.roundedRect(18, y, 174, 24, 4, 4, 'F');
+                // Decorative circle
+                doc.setFillColor(56, 130, 76);
+                doc.circle(182, y + 12, 14, 'F');
+                doc.setFillColor(64, 140, 84);
+                doc.circle(168, y + 12, 9, 'F');
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.setTextColor(...c.mint);
+                doc.text(label, 24, y + 8);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(16);
+                doc.setTextColor(...c.white);
+                doc.text(value, 24, y + 20);
+            } else {
+                doc.setFillColor(...c.light);
+                doc.roundedRect(18, y, 174, 22, 4, 4, 'F');
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.setTextColor(...c.muted);
+                doc.text(label, 24, y + 7);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(14);
+                doc.setTextColor(...c.text);
+                doc.text(value, 24, y + 18);
             }
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.setTextColor(...colors.mediumGray);
-            doc.text(label, 20, y);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(...colors.darkText);
-            doc.text(value, 190, y, { align: 'right' });
-            return y + 12;
+            return y + (highlight ? 30 : 27);
         };
         
-        // Helper: Draw result highlight box
-        const drawResultBox = (y, label, value, isMain = false) => {
-            const bgColor = isMain ? colors.accent : colors.lightGray;
-            const textColor = isMain ? colors.white : colors.darkText;
-            const labelColor = isMain ? [200, 255, 250] : colors.mediumGray;
-            
-            doc.setFillColor(...bgColor);
-            doc.roundedRect(15, y, 180, 22, 4, 4, 'F');
-            
-            if (isMain) {
-                // Add subtle decorative element for main result
-                doc.setFillColor(90, 220, 210);
-                doc.circle(185, y + 11, 15, 'F');
-                doc.setFillColor(100, 225, 215);
-                doc.circle(170, y + 11, 10, 'F');
-            }
-            
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(...labelColor);
-            doc.text(label, 20, y + 8);
-            
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(16);
-            doc.setTextColor(...textColor);
-            doc.text(value, 20, y + 18);
-            
-            return y + 28;
-        };
-        
-        // Helper: Draw footer
-        const drawFooter = () => {
-            const pageHeight = doc.internal.pageSize.height;
-            
-            // Footer line
-            doc.setDrawColor(...colors.accent);
-            doc.setLineWidth(0.5);
-            doc.line(15, pageHeight - 20, 195, pageHeight - 20);
-            
-            // Footer text
+        const infoCard = (x, y, w, title, value, accent) => {
+            doc.setFillColor(...c.offWhite);
+            doc.setDrawColor(...c.divider);
+            doc.roundedRect(x, y, w, 30, 4, 4, 'FD');
+            doc.setFillColor(...accent);
+            doc.roundedRect(x, y, 3.5, 30, 2, 2, 'F');
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-            doc.setTextColor(...colors.mediumGray);
-            doc.text('Generated by Advanced Financial Calculator', 105, pageHeight - 12, { align: 'center' });
-            doc.text(`© ${new Date().getFullYear()} | Premium Report`, 105, pageHeight - 7, { align: 'center' });
-            
-            // Watermark-style accent (subtle)
-            doc.setFillColor(245, 250, 255);
-            doc.circle(190, pageHeight - 15, 25, 'F');
+            doc.setTextColor(...c.muted);
+            doc.text(title, x + 10, y + 11);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.setTextColor(...c.text);
+            doc.text(value, x + 10, y + 23);
         };
         
-        // Draw the premium header
-        drawHeader();
+        // ── Footer ────────────────────────────────
+        const drawFooter = () => {
+            const ph = doc.internal.pageSize.height;
+            // Green gradient line
+            doc.setDrawColor(...c.sage);
+            doc.setLineWidth(0.8);
+            doc.line(18, ph - 18, 192, ph - 18);
+            // Small accent dot
+            doc.setFillColor(...c.sage);
+            doc.circle(18, ph - 18, 1.5, 'F');
+            doc.circle(192, ph - 18, 1.5, 'F');
+            // Text
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...c.muted);
+            doc.text('Generated by Advanced Financial Calculator  |  Lush Forest', 105, ph - 11, { align: 'center' });
+            doc.text(`(c) ${new Date().getFullYear()}  |  This is an auto-generated report for reference only.`, 105, ph - 6.5, { align: 'center' });
+        };
         
-        let currentY = 65;
+        // ── Content ────────────────────────────────
+        let y = 58;
         
         if (type === 'interest' && appState.currentResult) {
             const r = appState.currentResult;
+            if (!r.principal || !r.rate || !r.time) { alert('No calculation result. Please calculate first.'); return; }
             
-            // Validate result data exists
-            if (!r.principal || !r.rate || !r.time) {
-                alert('No calculation result available. Please calculate first.');
-                return;
-            }
-            
-            // Calculate interest and total amount based on stored values
-            // Convert time to years based on timeUnit
-            const timeConversions = {
-                'Years': 1,
-                'Months': 1/12,
-                'Weeks': 1/52,
-                'Days': 1/365,
-                'Quarters': 0.25
-            };
-            const timeInYears = r.time * (timeConversions[r.timeUnit] || 1);
-            
-            // Get frequency from form if available
+            const timeConv = { 'Years': 1, 'Months': 1/12, 'Weeks': 1/52, 'Days': 1/365, 'Quarters': 0.25 };
+            const tY = r.time * (timeConv[r.timeUnit] || 1);
             const freqSelect = document.getElementById('frequency');
-            const freq = freqSelect ? freqSelect.value : 'yearly';
-            const freqMap = { 'yearly': 1, 'half-yearly': 2, 'quarterly': 4, 'monthly': 12 };
+            const freq = freqSelect ? freqSelect.value : 'Annually';
+            const freqMap = { 'Annually': 1, 'Semi-Annually': 2, 'Quarterly': 4, 'Monthly': 12 };
             const n = freqMap[freq] || 1;
-            
-            let interestAmount, totalAmount;
+            let interest, total;
             if (r.type === 'compound') {
-                totalAmount = r.principal * Math.pow(1 + (r.rate / 100) / n, n * timeInYears);
-                interestAmount = totalAmount - r.principal;
+                total = r.principal * Math.pow(1 + (r.rate / 100) / n, n * tY);
+                interest = total - r.principal;
             } else {
-                interestAmount = r.principal * r.rate * timeInYears / 100;
-                totalAmount = r.principal + interestAmount;
+                interest = r.principal * r.rate * tY / 100;
+                total = r.principal + interest;
             }
+            const fmt = (v) => (v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
             
-            // Format numbers safely
-            const formatNum = (num) => (num || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+            // Info cards
+            infoCard(18, y, 56, 'PRINCIPAL', `Rs. ${fmt(r.principal)}`, c.sage);
+            infoCard(77, y, 56, 'RATE (P.A.)', `${r.rate}%`, c.gold);
+            infoCard(136, y, 56, 'DURATION', `${r.time} ${r.timeUnit}`, c.forest);
+            y += 38;
             
-            // Info Cards Row
-            drawInfoCard(15, currentY, 58, 32, 'Principal', `₹${formatNum(r.principal)}`, '₹', colors.accent);
-            drawInfoCard(76, currentY, 58, 32, 'Rate', `${r.rate}% p.a.`, '%', colors.gold);
-            drawInfoCard(137, currentY, 58, 32, 'Duration', `${r.time} ${r.timeUnit}`, 'T', colors.success);
-            
-            currentY += 42;
-            
-            // Calculation Type Badge
-            doc.setFillColor(...(r.type === 'compound' ? colors.success : colors.accent));
-            doc.roundedRect(15, currentY, 50, 8, 2, 2, 'F');
+            // Type badge
+            doc.setFillColor(...(r.type === 'compound' ? c.forest : c.sage));
+            doc.roundedRect(18, y, 52, 7, 2, 2, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(...colors.white);
-            doc.text(r.type === 'compound' ? 'COMPOUND INTEREST' : 'SIMPLE INTEREST', 40, currentY + 5.5, { align: 'center' });
-            
+            doc.setFontSize(7);
+            doc.setTextColor(...c.white);
+            doc.text(r.type === 'compound' ? 'COMPOUND INTEREST' : 'SIMPLE INTEREST', 44, y + 5, { align: 'center' });
             if (r.type === 'compound') {
-                doc.setFillColor(...colors.warning);
-                doc.roundedRect(70, currentY, 45, 8, 2, 2, 'F');
-                doc.text(freq.toUpperCase(), 92.5, currentY + 5.5, { align: 'center' });
+                doc.setFillColor(...c.gold);
+                doc.roundedRect(74, y, 38, 7, 2, 2, 'F');
+                doc.setTextColor(...c.deep);
+                doc.text(freq.toUpperCase(), 93, y + 5, { align: 'center' });
             }
+            y += 16;
             
-            currentY += 18;
+            // Details
+            y = sectionHead(y, 'CALCULATION DETAILS');
+            y = dataRow(y, 'Principal Amount', `Rs. ${fmt(r.principal)}`, false);
+            y = dataRow(y, 'Annual Interest Rate', `${r.rate}%`, true);
+            y = dataRow(y, 'Time Period', `${r.time} ${r.timeUnit}`, false);
+            y = dataRow(y, 'Type', r.type === 'compound' ? 'Compound Interest' : 'Simple Interest', true);
+            if (r.type === 'compound') y = dataRow(y, 'Compounding', freq, false);
+            y += 6;
             
-            // Details Section
-            currentY = drawSectionHeader(currentY, 'CALCULATION DETAILS');
-            
-            currentY = drawDataRow(currentY, 'Principal Amount', `₹${formatNum(r.principal)}`, false);
-            currentY = drawDataRow(currentY, 'Interest Rate', `${r.rate}% per annum`, true);
-            currentY = drawDataRow(currentY, 'Time Period', `${r.time} ${r.timeUnit}`, false);
-            currentY = drawDataRow(currentY, 'Calculation Type', r.type === 'compound' ? 'Compound Interest' : 'Simple Interest', true);
-            if (r.type === 'compound') {
-                currentY = drawDataRow(currentY, 'Compounding Frequency', freq.charAt(0).toUpperCase() + freq.slice(1), false);
-            }
-            
-            currentY += 5;
-            
-            // Results Section
-            currentY = drawSectionHeader(currentY, 'RESULTS');
-            currentY += 5;
-            
-            currentY = drawResultBox(currentY, 'Interest Earned', `₹${formatNum(interestAmount)}`, false);
-            currentY = drawResultBox(currentY, 'Total Amount (Principal + Interest)', `₹${formatNum(totalAmount)}`, true);
+            // Results
+            y = sectionHead(y, 'RESULTS');
+            y += 4;
+            y = resultCard(y, 'Interest Earned', `Rs. ${fmt(interest)}`, false);
+            y = resultCard(y, 'Total Amount (Principal + Interest)', `Rs. ${fmt(total)}`, true);
             
         } else if (type === 'emi' && appState.currentEmiResult) {
             const r = appState.currentEmiResult;
+            const fmt = (v) => (v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
             
-            // Info Cards Row
-            drawInfoCard(15, currentY, 58, 32, 'Loan Amount', `₹${r.principal.toLocaleString('en-IN')}`, '₹', colors.accent);
-            drawInfoCard(76, currentY, 58, 32, 'Interest', `${r.rate}% p.a.`, '%', colors.warning);
-            drawInfoCard(137, currentY, 58, 32, 'Tenure', `${r.tenure} months`, 'M', colors.success);
+            // Info cards
+            infoCard(18, y, 56, 'LOAN', `Rs. ${fmt(r.principal)}`, c.sage);
+            infoCard(77, y, 56, 'RATE (P.A.)', `${r.rate}%`, c.gold);
+            infoCard(136, y, 56, 'TENURE', `${r.tenure} mo`, c.forest);
+            y += 38;
             
-            currentY += 42;
-            
-            // EMI Badge
-            doc.setFillColor(...colors.primary);
-            doc.roundedRect(15, currentY, 60, 8, 2, 2, 'F');
+            // Badge
+            doc.setFillColor(...c.deep);
+            doc.roundedRect(18, y, 52, 7, 2, 2, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(...colors.accent);
-            doc.text('EMI CALCULATION', 45, currentY + 5.5, { align: 'center' });
+            doc.setFontSize(7);
+            doc.setTextColor(...c.sage);
+            doc.text('EMI CALCULATION', 44, y + 5, { align: 'center' });
+            y += 16;
             
-            currentY += 18;
+            // Details
+            y = sectionHead(y, 'LOAN DETAILS');
+            y = dataRow(y, 'Loan Principal', `Rs. ${fmt(r.principal)}`, false);
+            y = dataRow(y, 'Annual Interest Rate', `${r.rate}%`, true);
+            y = dataRow(y, 'Monthly Rate', `${(r.rate / 12).toFixed(3)}%`, false);
+            y = dataRow(y, 'Tenure', `${r.tenure} months (${(r.tenure / 12).toFixed(1)} yrs)`, true);
+            y += 6;
             
-            // Loan Details Section
-            currentY = drawSectionHeader(currentY, 'LOAN DETAILS');
+            // Payment Summary
+            y = sectionHead(y, 'PAYMENT SUMMARY');
+            y += 4;
+            y = resultCard(y, 'Monthly EMI', `Rs. ${fmt(r.emi)}`, true);
+            y = resultCard(y, 'Total Interest Payable', `Rs. ${fmt(r.totalInterest)}`, false);
+            y = resultCard(y, 'Total Amount Payable', `Rs. ${fmt(r.totalPayment)}`, false);
             
-            currentY = drawDataRow(currentY, 'Loan Principal', `₹${r.principal.toLocaleString('en-IN')}`, false);
-            currentY = drawDataRow(currentY, 'Annual Interest Rate', `${r.rate}%`, true);
-            currentY = drawDataRow(currentY, 'Monthly Interest Rate', `${(r.rate / 12).toFixed(3)}%`, false);
-            currentY = drawDataRow(currentY, 'Loan Tenure', `${r.tenure} months (${(r.tenure / 12).toFixed(1)} years)`, true);
-            
-            currentY += 5;
-            
-            // Payment Summary Section
-            currentY = drawSectionHeader(currentY, 'PAYMENT SUMMARY');
-            currentY += 5;
-            
-            currentY = drawResultBox(currentY, 'Monthly EMI', `₹${r.emi.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, true);
-            currentY = drawResultBox(currentY, 'Total Interest Payable', `₹${r.totalInterest.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, false);
-            currentY = drawResultBox(currentY, 'Total Amount Payable', `₹${r.totalPayment.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, false);
-            
-            // Interest to Principal Ratio
-            currentY += 8;
-            const interestRatio = ((r.totalInterest / r.principal) * 100).toFixed(1);
-            doc.setFillColor(...colors.lightGray);
-            doc.roundedRect(15, currentY, 180, 20, 4, 4, 'F');
-            
-            // Progress bar background
-            doc.setFillColor(200, 210, 220);
-            doc.roundedRect(20, currentY + 12, 170, 5, 2, 2, 'F');
-            
-            // Progress bar fill (principal portion)
-            const principalWidth = 170 * (r.principal / r.totalPayment);
-            doc.setFillColor(...colors.accent);
-            doc.roundedRect(20, currentY + 12, principalWidth, 5, 2, 2, 'F');
-            
+            // Ratio bar
+            y += 4;
+            doc.setFillColor(...c.light);
+            doc.roundedRect(18, y, 174, 18, 4, 4, 'F');
+            doc.setFillColor(...c.divider);
+            doc.roundedRect(24, y + 11, 164, 4, 2, 2, 'F');
+            const pw2 = 164 * (r.principal / r.totalPayment);
+            doc.setFillColor(...c.sage);
+            doc.roundedRect(24, y + 11, pw2, 4, 2, 2, 'F');
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(...colors.mediumGray);
-            doc.text(`Principal: ${((r.principal / r.totalPayment) * 100).toFixed(1)}%`, 20, currentY + 8);
-            doc.text(`Interest: ${((r.totalInterest / r.totalPayment) * 100).toFixed(1)}%`, 190, currentY + 8, { align: 'right' });
+            doc.setFontSize(7);
+            doc.setTextColor(...c.muted);
+            doc.text(`Principal: ${((r.principal / r.totalPayment) * 100).toFixed(1)}%`, 24, y + 7);
+            doc.text(`Interest: ${((r.totalInterest / r.totalPayment) * 100).toFixed(1)}%`, 188, y + 7, { align: 'right' });
         } else {
-            // No result available
             alert('No calculation result available. Please calculate first.');
             return;
         }
         
-        // Draw footer
         drawFooter();
-        
-        doc.save(`premium-report-${Date.now()}.pdf`);
+        doc.save(`financial-report-${Date.now()}.pdf`);
     }
 
     // ============================================================
@@ -1152,6 +1351,21 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.frequencyGroup.style.display = 'none';
         elements.interestTypeInput.value = 'simple';
         elements.sliderTrack?.classList.remove('active-compound');
+        
+        // Reset date mode
+        appState.isDateMode = false;
+        elements.togglePill?.classList.remove('on');
+        elements.dateModeToggle?.classList.remove('on');
+        elements.dtIcon?.classList.remove('on');
+        elements.manualTimeGroup?.classList.remove('hidden');
+        elements.dateRangeGroup?.classList.remove('visible');
+        elements.calculatedPeriod?.classList.add('hidden');
+        
+        // Reset freq chips
+        document.querySelectorAll('.freq-chip').forEach(c => c.classList.remove('active'));
+        document.querySelector('.freq-chip[data-value="Annually"]')?.classList.add('active');
+        const freqInput = document.getElementById('frequency');
+        if (freqInput) freqInput.value = 'Annually';
         
         ['principal', 'rate', 'time'].forEach(id => {
             const el = document.getElementById(id);

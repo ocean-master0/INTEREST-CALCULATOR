@@ -158,6 +158,9 @@ def calculate_interest():
         if time_input > MAX_TIME_YEARS and time_unit == "Years":
             return jsonify({'error': f'Time period is too long (max {MAX_TIME_YEARS} years).'})
 
+        if time_unit == "Days" and time_input > 365000:
+            return jsonify({'error': 'Date range too large (max ~1000 years).'})
+
         # Convert time to years
         time_in_years = time_input * TIME_CONVERSIONS.get(time_unit, 1)
 

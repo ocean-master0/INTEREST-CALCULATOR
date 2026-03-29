@@ -7,14 +7,17 @@
     
     <!-- PWA Meta -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <meta name="theme-color" content="#0a1628">
+    <meta name="theme-color" content="#253D2C">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192x192.png') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     
-    <!-- Fonts -->
+    <!-- Fonts: DM Sans + DM Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
     <!-- Chart.js for Interactive Charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -29,15 +32,15 @@
     <!-- History Sidebar -->
     <aside id="history-sidebar" class="history-sidebar">
         <div class="history-header">
-            <h2>Calculation History</h2>
+            <h2><i class="bi bi-clock-history"></i> History</h2>
             <button id="close-history" class="icon-btn" aria-label="Close history">
-                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                <i class="bi bi-x-lg"></i>
             </button>
         </div>
         <div id="history-list" class="history-list">
             <p class="history-empty">No calculations yet</p>
         </div>
-        <button id="clear-history" class="clear-history-btn">Clear All History</button>
+        <button id="clear-history" class="clear-history-btn"><i class="bi bi-trash3-fill"></i> Clear All History</button>
     </aside>
     
     <!-- History Overlay -->
@@ -47,42 +50,34 @@
         <!-- Header -->
         <header class="header">
             <button id="open-history" class="icon-btn history-toggle" aria-label="Open history">
-                <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <i class="bi bi-clock-history"></i>
             </button>
-            <h1>Advanced Calculator</h1>
+            <h1>Calculator</h1>
             <button id="sound-toggle" class="icon-btn sound-toggle" aria-label="Toggle sound">
-                <svg id="sound-on-icon" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                <svg id="sound-off-icon" class="hidden" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                <i id="sound-on-icon" class="bi bi-bell"></i>
+                <i id="sound-off-icon" class="bi bi-bell-slash hidden"></i>
             </button>
         </header>
-
-        <!-- Tab Navigation -->
-        <nav class="tab-group">
-            <button class="tab-btn active" data-tab="interest">Interest</button>
-            <button class="tab-btn" data-tab="emi">EMI</button>
-            <button class="tab-btn" data-tab="compare">Compare</button>
-            <button class="tab-btn" data-tab="normal">Calc</button>
-        </nav>
 
         <!-- ============================================================
              Interest Calculator Tab
              ============================================================ -->
         <section id="interest" class="tab-content active">
             <form id="interest-form" aria-label="Interest Calculator Form">
-                <!-- Principal Input -->
+                <!-- Principal Input with ₹ prefix -->
                 <div class="input-group">
-                    <label for="principal">Principal (INR)</label>
-                    <div class="input-wrapper">
+                    <div class="input-label"><i class="bi bi-currency-rupee"></i> Principal Amount</div>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">₹</span>
                         <input type="text" inputmode="decimal" id="principal" name="principal"
-                               placeholder="Enter amount" required aria-describedby="principal-error">
-                        <span class="validation-icon"></span>
+                               placeholder="0.00" required aria-describedby="principal-error">
                     </div>
                     <span id="principal-error" class="error-text"></span>
                 </div>
 
                 <!-- Rate Input -->
                 <div class="input-group">
-                    <label for="rate">Rate (% per annum)</label>
+                    <div class="input-label"><i class="bi bi-graph-up-arrow"></i> Rate % per annum</div>
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="rate" name="rate"
                                placeholder="Enter rate" required aria-describedby="rate-error">
@@ -91,55 +86,87 @@
                     <span id="rate-error" class="error-text"></span>
                 </div>
 
-                <!-- Time Input with Integrated Dropdown -->
-                <div class="input-group">
-                    <label for="time">Time Period</label>
+                <!-- Date Mode Toggle -->
+                <div class="date-toggle-row" id="date-mode-toggle" role="switch" aria-checked="false">
+                    <div class="dtl">
+                        <div class="dt-icon" id="dt-icon"><i class="bi bi-calendar-range"></i></div>
+                        <div>
+                            <div class="dt-text">Use Date Range</div>
+                            <div class="dt-sub">Auto-calculate from dates</div>
+                        </div>
+                    </div>
+                    <div class="toggle-pill" id="toggle-pill"><div class="toggle-knob"></div></div>
+                </div>
+
+                <!-- Manual Time (default visible) -->
+                <div class="input-group" id="manual-time-group">
+                    <div class="input-label"><i class="bi bi-hourglass-split"></i> Time Period</div>
                     <div class="time-input-group">
                         <div class="input-wrapper">
                             <input type="text" inputmode="decimal" id="time" name="time"
-                                   placeholder="Enter time" required aria-describedby="time-error">
+                                   placeholder="Duration" required aria-describedby="time-error">
                             <span class="validation-icon"></span>
                         </div>
-                        <div class="time-divider"></div>
                         <select id="time_unit" name="time_unit" aria-label="Time Unit">
                             <option value="Years">Years</option>
                             <option value="Months">Months</option>
                             <option value="Days">Days</option>
-                            <option value="Minutes">Minutes</option>
-                            <option value="Seconds">Seconds</option>
                         </select>
                     </div>
                     <span id="time-error" class="error-text"></span>
                 </div>
 
+                <!-- Date Range (hidden by default, shown when toggle ON) -->
+                <div class="date-range-section" id="date-range-group">
+                    <div class="date-input-row">
+                        <div class="date-field">
+                            <div class="date-field-label"><i class="bi bi-calendar-event"></i> Start Date</div>
+                            <input type="date" id="start-date" name="start_date">
+                        </div>
+                        <div class="date-field">
+                            <div class="date-field-label"><i class="bi bi-calendar-check"></i> End Date</div>
+                            <input type="date" id="end-date" name="end_date">
+                        </div>
+                    </div>
+                    <!-- Auto-calculated period display -->
+                    <div class="period-badge hidden" id="calculated-period">
+                        <i class="bi bi-stopwatch-fill"></i>
+                        <div>
+                            <div class="pb-main" id="period-text">0 days</div>
+                            <div class="pb-sub" id="period-sub-text">Auto-calculated from selected dates</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Interest Type Toggle -->
                 <div class="input-group">
-                    <label>Interest Type</label>
+                    <div class="input-label"><i class="bi bi-toggles"></i> Interest Type</div>
                     <div class="slider-toggle">
                         <input type="hidden" id="interest_type" name="interest_type" value="simple">
                         <div class="slider-track">
-                            <span class="slider-option" data-type="simple">Simple</span>
-                            <span class="slider-option" data-type="compound">Compound</span>
+                            <span class="slider-option" data-type="simple"><i class="bi bi-activity"></i> Simple</span>
+                            <span class="slider-option" data-type="compound"><i class="bi bi-arrow-repeat"></i> Compound</span>
                             <div class="slider-handle"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Frequency (for Compound Interest) -->
+                <!-- Frequency (for Compound Interest) - Chip style -->
                 <div class="input-group" id="frequency-group" style="display: none;">
-                    <label for="frequency">Compounding Frequency</label>
-                    <select id="frequency" name="frequency" aria-label="Compounding Frequency">
-                        <option value="Annually">Annually</option>
-                        <option value="Semi-Annually">Semi-Annually</option>
-                        <option value="Quarterly">Quarterly</option>
-                        <option value="Monthly">Monthly</option>
-                    </select>
+                    <div class="input-label"><i class="bi bi-calendar4-week"></i> Compounding Frequency</div>
+                    <div class="freq-row" id="freq-chips">
+                        <div class="freq-chip active" data-value="Annually">Annually</div>
+                        <div class="freq-chip" data-value="Semi-Annually">Semi</div>
+                        <div class="freq-chip" data-value="Quarterly">Quarterly</div>
+                        <div class="freq-chip" data-value="Monthly">Monthly</div>
+                    </div>
+                    <input type="hidden" id="frequency" name="frequency" value="Annually">
                 </div>
 
                 <!-- Action Buttons -->
                 <div class="button-group">
-                    <button type="submit">Calculate</button>
-                    <button type="button" id="clear-interest">Clear</button>
+                    <button type="submit"><i class="bi bi-calculator-fill"></i> Calculate</button>
+                    <button type="button" id="clear-interest"><i class="bi bi-x-circle"></i> Clear</button>
                 </div>
             </form>
 
@@ -181,16 +208,13 @@
             <!-- Action Buttons -->
             <div id="result-actions" class="result-actions hidden">
                 <button type="button" id="share-result" class="action-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
-                    Share
+                    <i class="bi bi-share-fill"></i> Share
                 </button>
                 <button type="button" id="whatsapp-share" class="action-btn whatsapp-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    WhatsApp
+                    <i class="bi bi-whatsapp"></i> WhatsApp
                 </button>
                 <button type="button" id="download-pdf" class="action-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7v4h-2v-4H9l4-4 4 4h-4z"/></svg>
-                    PDF
+                    <i class="bi bi-file-earmark-pdf-fill"></i> PDF
                 </button>
             </div>
         </section>
@@ -202,21 +226,21 @@
             <form id="emi-form" aria-label="EMI Calculator Form">
                 <!-- Loan Amount -->
                 <div class="input-group">
-                    <label for="emi-principal">Loan Amount (INR)</label>
-                    <div class="input-wrapper">
+                    <div class="input-label"><i class="bi bi-house-fill"></i> Loan Amount</div>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">₹</span>
                         <input type="text" inputmode="decimal" id="emi-principal" name="emi-principal"
-                               placeholder="Enter loan amount" required>
-                        <span class="validation-icon"></span>
+                               placeholder="0.00" required>
                     </div>
                     <span id="emi-principal-error" class="error-text"></span>
                 </div>
 
                 <!-- Interest Rate -->
                 <div class="input-group">
-                    <label for="emi-rate">Interest Rate (% p.a.)</label>
+                    <div class="input-label"><i class="bi bi-graph-up-arrow"></i> Annual Interest Rate</div>
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="emi-rate" name="emi-rate"
-                               placeholder="Enter interest rate" required>
+                               placeholder="e.g. 10.5%" required>
                         <span class="validation-icon"></span>
                     </div>
                     <span id="emi-rate-error" class="error-text"></span>
@@ -224,17 +248,16 @@
 
                 <!-- Loan Tenure -->
                 <div class="input-group">
-                    <label for="emi-tenure">Loan Tenure</label>
+                    <div class="input-label"><i class="bi bi-calendar3"></i> Loan Tenure</div>
                     <div class="time-input-group">
                         <div class="input-wrapper">
                             <input type="text" inputmode="decimal" id="emi-tenure" name="emi-tenure"
-                                   placeholder="Enter tenure" required>
+                                   placeholder="Duration" required>
                             <span class="validation-icon"></span>
                         </div>
-                        <div class="time-divider"></div>
                         <select id="emi-tenure-unit" name="emi-tenure-unit" aria-label="Tenure Unit">
-                            <option value="Years">Years</option>
                             <option value="Months">Months</option>
+                            <option value="Years">Years</option>
                         </select>
                     </div>
                     <span id="emi-tenure-error" class="error-text"></span>
@@ -242,8 +265,8 @@
 
                 <!-- Action Buttons -->
                 <div class="button-group">
-                    <button type="submit">Calculate EMI</button>
-                    <button type="button" id="clear-emi">Clear</button>
+                    <button type="submit"><i class="bi bi-calculator-fill"></i> Calculate EMI</button>
+                    <button type="button" id="clear-emi"><i class="bi bi-x-circle"></i> Clear</button>
                 </div>
             </form>
 
@@ -259,15 +282,15 @@
             <!-- EMI Breakdown -->
             <div id="emi-breakdown" class="emi-summary hidden">
                 <div class="emi-stat">
-                    <span class="emi-stat-label">Monthly EMI</span>
+                    <span class="emi-stat-label"><i class="bi bi-calendar-month"></i> Monthly</span>
                     <span id="emi-monthly" class="emi-stat-value">₹0</span>
                 </div>
                 <div class="emi-stat">
-                    <span class="emi-stat-label">Total Interest</span>
+                    <span class="emi-stat-label"><i class="bi bi-cash-stack"></i> Interest</span>
                     <span id="emi-total-interest" class="emi-stat-value">₹0</span>
                 </div>
                 <div class="emi-stat">
-                    <span class="emi-stat-label">Total Payment</span>
+                    <span class="emi-stat-label"><i class="bi bi-wallet2"></i> Total</span>
                     <span id="emi-total-payment" class="emi-stat-value">₹0</span>
                 </div>
             </div>
@@ -280,12 +303,10 @@
             <!-- EMI Actions -->
             <div id="emi-actions" class="result-actions hidden">
                 <button type="button" id="emi-whatsapp" class="action-btn whatsapp-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    WhatsApp
+                    <i class="bi bi-whatsapp"></i> WhatsApp
                 </button>
                 <button type="button" id="emi-pdf" class="action-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-3-7v4h-2v-4H9l4-4 4 4h-4z"/></svg>
-                    PDF
+                    <i class="bi bi-file-earmark-pdf-fill"></i> PDF
                 </button>
             </div>
         </section>
@@ -297,18 +318,18 @@
             <form id="compare-form" aria-label="Interest Comparison Form">
                 <!-- Principal -->
                 <div class="input-group">
-                    <label for="compare-principal">Principal (INR)</label>
-                    <div class="input-wrapper">
+                    <div class="input-label"><i class="bi bi-currency-rupee"></i> Principal (INR)</div>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">₹</span>
                         <input type="text" inputmode="decimal" id="compare-principal" name="compare-principal"
                                placeholder="Enter amount" required>
-                        <span class="validation-icon"></span>
                     </div>
                     <span id="compare-principal-error" class="error-text"></span>
                 </div>
 
                 <!-- Rate -->
                 <div class="input-group">
-                    <label for="compare-rate">Rate (% p.a.)</label>
+                    <div class="input-label"><i class="bi bi-graph-up-arrow"></i> Rate (% p.a.)</div>
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="compare-rate" name="compare-rate"
                                placeholder="Enter rate" required>
@@ -319,7 +340,7 @@
 
                 <!-- Time -->
                 <div class="input-group">
-                    <label for="compare-time">Time Period (Years)</label>
+                    <div class="input-label"><i class="bi bi-hourglass-split"></i> Time Period (Years)</div>
                     <div class="input-wrapper">
                         <input type="text" inputmode="decimal" id="compare-time" name="compare-time"
                                placeholder="Enter years" required>
@@ -330,8 +351,8 @@
 
                 <!-- Action Button -->
                 <div class="button-group">
-                    <button type="submit">Compare Interest</button>
-                    <button type="button" id="clear-compare">Clear</button>
+                    <button type="submit"><i class="bi bi-bar-chart-steps"></i> Compare Interest</button>
+                    <button type="button" id="clear-compare"><i class="bi bi-x-circle"></i> Clear</button>
                 </div>
             </form>
 
@@ -344,17 +365,17 @@
             <!-- Comparison Results -->
             <div id="compare-results" class="compare-results hidden">
                 <div class="compare-card simple">
-                    <h3>Simple Interest</h3>
+                    <h3><i class="bi bi-activity"></i> Simple</h3>
                     <div class="compare-value" id="compare-simple-interest">₹0</div>
                     <div class="compare-total">Total: <span id="compare-simple-total">₹0</span></div>
                 </div>
                 <div class="compare-card compound">
-                    <h3>Compound Interest</h3>
+                    <h3><i class="bi bi-arrow-repeat"></i> Compound</h3>
                     <div class="compare-value" id="compare-compound-interest">₹0</div>
                     <div class="compare-total">Total: <span id="compare-compound-total">₹0</span></div>
                 </div>
                 <div class="compare-difference">
-                    <span>Difference:</span>
+                    <span><i class="bi bi-arrow-up-circle-fill"></i> CI earns more by</span>
                     <span id="compare-difference-value">₹0</span>
                 </div>
             </div>
@@ -379,7 +400,7 @@
                 <!-- Keypad -->
                 <div class="calc-buttons">
                     <button class="calc-btn utility" data-value="C">AC</button>
-                    <button class="calc-btn backspace" data-value="backspace">⌫</button>
+                    <button class="calc-btn backspace" data-value="backspace"><i class="bi bi-backspace-fill"></i></button>
                     <button class="calc-btn utility" data-value="%">%</button>
                     <button class="calc-btn operator" data-value="÷">÷</button>
 
@@ -405,6 +426,14 @@
             </div>
         </section>
     </div>
+
+    <!-- Bottom Tab Bar -->
+    <nav class="tab-bar-bottom" id="tab-bar-bottom">
+        <button class="tab-item active" data-tab="interest"><i class="bi bi-percent"></i><span>Interest</span></button>
+        <button class="tab-item" data-tab="emi"><i class="bi bi-bank"></i><span>EMI</span></button>
+        <button class="tab-item" data-tab="compare"><i class="bi bi-bar-chart-line"></i><span>Compare</span></button>
+        <button class="tab-item" data-tab="normal"><i class="bi bi-grid-3x3-gap-fill"></i><span>Calc</span></button>
+    </nav>
 
     <!-- Audio for Sound Effects -->
     <audio id="click-sound" preload="auto">
