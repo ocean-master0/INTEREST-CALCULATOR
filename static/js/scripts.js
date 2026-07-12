@@ -11,8 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('ServiceWorker registered:', reg.scope))
-            .catch(err => console.error('ServiceWorker failed:', err));
+            .then(() => {})
+            .catch(() => {});
     }
 
     // ============================================================
@@ -91,7 +91,38 @@ document.addEventListener('DOMContentLoaded', () => {
         endDateInput: document.getElementById('end-date'),
         calculatedPeriod: document.getElementById('calculated-period'),
         periodText: document.getElementById('period-text'),
-        periodSubText: document.getElementById('period-sub-text')
+        periodSubText: document.getElementById('period-sub-text'),
+
+        // Settlement
+        collectionAmount: document.getElementById('collection-amount'),
+        totalCharges: document.getElementById('total-charges'),
+        settlenowCharges: document.getElementById('settlenow-charges'),
+        sDisplayCollection: document.getElementById('s-display-collection'),
+        sDisplayCharges: document.getElementById('s-display-charges'),
+        sDisplaySettlenow: document.getElementById('s-display-settlenow'),
+        sDisplayDeducted: document.getElementById('s-display-deducted'),
+        sDisplaySettlement: document.getElementById('s-display-settlement'),
+        sDisplayPercent: document.getElementById('s-display-percent'),
+        settlementSummary: document.getElementById('settlement-summary'),
+        settlementActions: document.getElementById('settlement-actions'),
+        settlementPdf: document.getElementById('settlement-pdf'),
+        settlementShare: document.getElementById('settlement-share'),
+        settlementModeSlider: document.getElementById('settlement-mode-slider'),
+        settlementModeInput: document.getElementById('settlement-mode'),
+        settlementForward: document.getElementById('settlement-forward'),
+        settlementReverse: document.getElementById('settlement-reverse'),
+
+        // Reverse Settlement
+        revCollectionAmount: document.getElementById('rev-collection-amount'),
+        revAvailable: document.getElementById('rev-available'),
+        rDisplayCollection: document.getElementById('r-display-collection'),
+        rDisplayAvailable: document.getElementById('r-display-available'),
+        rDisplayDeducted: document.getElementById('r-display-deducted'),
+        rDisplayPercent: document.getElementById('r-display-percent'),
+        reverseSummary: document.getElementById('reverse-summary'),
+        revSettlementActions: document.getElementById('rev-settlement-actions'),
+        revSettlementPdf: document.getElementById('rev-settlement-pdf'),
+        revSettlementShare: document.getElementById('rev-settlement-share')
     };
 
     // ============================================================
@@ -108,14 +139,361 @@ document.addEventListener('DOMContentLoaded', () => {
         history: JSON.parse(localStorage.getItem('calcHistory') || '[]'),
         currentResult: null,
         currentEmiResult: null,
+        currentSettlementResult: null,
+        currentRevSettlementResult: null,
         interestChart: null,
         emiChart: null,
         compareChart: null,
         isDateMode: false
     };
+
+    // Separate state for each settlement mode (Issue 3: preserve values on mode switch)
+    let forwardState = { collectionAmount: '', totalCharges: '', settlenowCharges: '' };
+    let reverseState = { collectionAmount: '', available: '' };
     
     // Initialize sound icon
     updateSoundIcon();
+
+    // ============================================================
+    // Result Persistence (Issue 8)
+    // ============================================================
+
+    function saveResultsToStorage() {
+        try {
+            const data = {
+                currentResult: appState.currentResult ? { ...appState.currentResult, text: undefined } : null,
+                currentEmiResult: appState.currentEmiResult ? { ...appState.currentEmiResult, text: undefined } : null,
+                currentSettlementResult: appState.currentSettlementResult ? { ...appState.currentSettlementResult } : null,
+                currentRevSettlementResult: appState.currentRevSettlementResult ? { ...appState.currentRevSettlementResult } : null,
+            };
+            localStorage.setItem('calcResults', JSON.stringify(data));
+        } catch (e) {}
+    }
+
+    function restoreResultsFromStorage() {
+        try {
+            const raw = localStorage.getItem('calcResults');
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data.currentResult) {
+                appState.currentResult = data.currentResult;
+                appState.currentResult.text = '';
+                if (elements.interestResult && data.currentResult.principal) {
+                    elements.interestResult.innerHTML = `${data.currentResult.type === 'compound' ? 'Compound' : 'Simple'} Interest: ₹${Number(data.currentResult.principal * data.currentResult.rate / 100).toLocaleString('en-IN', {maximumFractionDigits: 2})}<br>Total Amount: ₹${(data.currentResult.principal + data.currentResult.principal * data.currentResult.rate / 100).toLocaleString('en-IN', {maximumFractionDigits: 2})}`;
+                    elements.resultActions?.classList.remove('hidden');
+                }
+            }
+            if (data.currentEmiResult) {
+                appState.currentEmiResult = data.currentEmiResult;
+                appState.currentEmiResult.text = '';
+                if (elements.emiMonthly) {
+                    elements.emiMonthly.textContent = `₹${Number(data.currentEmiResult.emi).toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+                    elements.emiTotalInterest.textContent = `₹${Number(data.currentEmiResult.totalInterest).toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+                    elements.emiTotalPayment.textContent = `₹${Number(data.currentEmiResult.totalPayment).toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+                    elements.emiBreakdown?.classList.remove('hidden');
+                    elements.emiActions?.classList.remove('hidden');
+                }
+            }
+        } catch (e) {}
+    }
+
+    restoreResultsFromStorage();
+
+    // ============================================================
+    // Haptic Feedback (Issue 5)
+    // ============================================================
+
+    function vibrate(pattern = 10) {
+        if (navigator.vibrate) {
+            try { navigator.vibrate(pattern); } catch (e) {}
+        }
+    }
+
+    // Wrap playClickSound to include haptics
+    const _origPlayClick = playClickSound;
+    playClickSound = function() {
+        _origPlayClick();
+        vibrate(8);
+    };
+
+    // ============================================================
+    // Animated Number Transitions (Issue 2)
+    // ============================================================
+
+    function animateValue(element, start, end, prefix, suffix, duration = 400) {
+        if (!element) return;
+        const startTime = performance.now();
+        const isFloat = (end % 1) !== 0;
+
+        function step(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 3);
+            const current = start + (end - start) * ease;
+
+            if (isFloat) {
+                element.textContent = (prefix || '') + current.toFixed(2) + (suffix || '');
+            } else {
+                element.textContent = (prefix || '') + Math.round(current).toLocaleString('en-IN') + (suffix || '');
+            }
+
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            }
+        }
+
+        requestAnimationFrame(step);
+    }
+
+    function animateINR(element, newValue, duration = 400) {
+        if (!element) return;
+        const oldText = element.textContent.replace(/[₹,\s]/g, '') || '0';
+        const oldValue = parseFloat(oldText);
+        if (isNaN(oldValue)) { element.textContent = '₹' + Number(newValue).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}); return; }
+        animateValue(element, oldValue, newValue, '₹', '', duration);
+    }
+
+    function animatePercent(element, newValue, duration = 400) {
+        if (!element) return;
+        const oldText = element.textContent.replace(/[%,\s]/g, '') || '0';
+        const oldValue = parseFloat(oldText);
+        if (isNaN(oldValue)) { element.textContent = newValue.toFixed(2) + '%'; return; }
+        animateValue(element, oldValue, newValue, '', '%', duration);
+    }
+
+    // ============================================================
+    // Clear Buttons Inside Inputs (Issue 3)
+    // ============================================================
+
+    function addClearButtons() {
+        document.querySelectorAll('.input-wrapper input, .input-with-prefix input').forEach(input => {
+            if (input.closest('.no-clear')) return;
+            const wrapper = input.closest('.input-wrapper') || input.closest('.input-with-prefix');
+            if (!wrapper || wrapper.querySelector('.input-clear-btn')) return;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'input-clear-btn';
+            btn.textContent = '\u00D7';
+            btn.setAttribute('aria-label', 'Clear input');
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                input.value = '';
+                wrapper.classList.remove('filled');
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('blur'));
+                input.focus();
+                vibrate(5);
+            });
+
+            wrapper.appendChild(btn);
+
+            const showHide = () => {
+                if (input.value.trim()) {
+                    wrapper.classList.add('filled');
+                } else {
+                    wrapper.classList.remove('filled');
+                }
+            };
+
+            input.addEventListener('input', showHide);
+            input.addEventListener('change', showHide);
+            showHide();
+        });
+    }
+
+    addClearButtons();
+
+    // ============================================================
+    // Swipeable Tabs (Issue 1)
+    // ============================================================
+
+    function initSwipeTabs() {
+        const wrapper = document.getElementById('tab-content-wrapper');
+        if (!wrapper) return;
+
+        const tabs = ['interest', 'emi', 'settlement', 'compare', 'normal'];
+        let startX = 0;
+        let startY = 0;
+        let isSwiping = false;
+
+        wrapper.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            isSwiping = false;
+        }, { passive: true });
+
+        wrapper.addEventListener('touchmove', (e) => {
+            if (!startX) return;
+            const diffX = Math.abs(e.touches[0].clientX - startX);
+            const diffY = Math.abs(e.touches[0].clientY - startY);
+            if (diffX > diffY && diffX > 30) {
+                isSwiping = true;
+            }
+        }, { passive: true });
+
+        wrapper.addEventListener('touchend', (e) => {
+            if (!isSwiping || !startX) return;
+            const diffX = e.changedTouches[0].clientX - startX;
+            const currentTab = document.querySelector('.tab-content.active')?.id;
+            const idx = tabs.indexOf(currentTab);
+
+            if (diffX < -50 && idx < tabs.length - 1) {
+                switchToTab(tabs[idx + 1]);
+            } else if (diffX > 50 && idx > 0) {
+                switchToTab(tabs[idx - 1]);
+            }
+
+            startX = 0;
+            startY = 0;
+            isSwiping = false;
+        }, { passive: true });
+    }
+
+    initSwipeTabs();
+
+    // ============================================================
+    // Font Size Settings (Issue 9)
+    // ============================================================
+
+    function applyFontSize(size) {
+        const body = document.body;
+        body.classList.remove('font-small', 'font-medium', 'font-large');
+        body.classList.add('font-' + size);
+        localStorage.setItem('fontSize', size);
+
+        document.querySelectorAll('.font-option').forEach(el => {
+            el.classList.toggle('active', el.dataset.size === size);
+        });
+    }
+
+    const savedFontSize = localStorage.getItem('fontSize') || 'medium';
+    applyFontSize(savedFontSize);
+
+    document.querySelectorAll('.font-option').forEach(el => {
+        el.addEventListener('click', () => {
+            applyFontSize(el.dataset.size);
+            vibrate(5);
+        });
+    });
+
+    // Settings panel toggle
+    document.getElementById('settings-toggle')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const panel = document.getElementById('settings-panel');
+        panel?.classList.toggle('hidden');
+        vibrate(5);
+    });
+
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('settings-panel');
+        const toggle = document.getElementById('settings-toggle');
+        if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target) && !toggle?.contains(e.target)) {
+            panel.classList.add('hidden');
+        }
+    });
+
+    // ============================================================
+    // Scroll to Top on Tab Change (Issue 4)
+    // ============================================================
+
+    function scrollToTop() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function switchToTab(tabId) {
+        const btn = document.querySelector(`.tab-item[data-tab="${tabId}"]`);
+        if (btn) btn.click();
+        scrollToTop();
+    }
+
+    // ============================================================
+    // History Restore (Issue 6)
+    // ============================================================
+
+    function restoreHistoryItem(item) {
+        const data = item.data;
+        if (!data) return;
+
+        switch (item.type) {
+            case 'Interest': {
+                switchToTab('interest');
+                if (data.principal) {
+                    document.getElementById('principal').value = Number(data.principal).toLocaleString('en-IN');
+                    if (data.rate) document.getElementById('rate').value = data.rate;
+                    if (data.time) document.getElementById('time').value = data.time;
+                    if (data.timeUnit) document.getElementById('time_unit').value = data.timeUnit;
+                    if (data.type === 'compound') {
+                        document.getElementById('interest_type').value = 'compound';
+                        document.querySelector('.slider-track')?.classList.add('active-compound');
+                        document.getElementById('frequency-group').style.display = 'block';
+                    }
+                    // Re-submit to recalculate
+                    document.getElementById('interest-form')?.dispatchEvent(new Event('submit'));
+                }
+                break;
+            }
+            case 'EMI': {
+                switchToTab('emi');
+                if (data.principal) {
+                    document.getElementById('emi-principal').value = Number(data.principal).toLocaleString('en-IN');
+                    if (data.rate) document.getElementById('emi-rate').value = data.rate;
+                    if (data.tenure) {
+                        document.getElementById('emi-tenure').value = data.tenure;
+                        document.getElementById('emi-tenure-unit').value = 'Months';
+                    }
+                    document.getElementById('emi-form')?.dispatchEvent(new Event('submit'));
+                }
+                break;
+            }
+            case 'Comparison': {
+                switchToTab('compare');
+                if (data.principal) {
+                    document.getElementById('compare-principal').value = Number(data.principal).toLocaleString('en-IN');
+                    if (data.rate) document.getElementById('compare-rate').value = data.rate;
+                    if (data.time) document.getElementById('compare-time').value = data.time;
+                    // Trigger auto-calc
+                    ['compare-principal', 'compare-rate', 'compare-time'].forEach(id => {
+                        document.getElementById(id)?.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                }
+                break;
+            }
+            case 'Settlement': {
+                switchToTab('settlement');
+                if (data.mode === 'forward') {
+                    // Switch to forward mode
+                    const forwardOpt = document.querySelector('#settlement-mode-slider .slider-option[data-mode="forward"]');
+                    if (forwardOpt) forwardOpt.click();
+                    if (data.collection) document.getElementById('collection-amount').value = Number(data.collection).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    if (data.charges) document.getElementById('total-charges').value = Number(data.charges).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    if (data.settlenow) document.getElementById('settlenow-charges').value = Number(data.settlenow).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    ['collection-amount', 'total-charges', 'settlenow-charges'].forEach(id => {
+                        document.getElementById(id)?.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                } else {
+                    const reverseOpt = document.querySelector('#settlement-mode-slider .slider-option[data-mode="reverse"]');
+                    if (reverseOpt) reverseOpt.click();
+                    if (data.collection) document.getElementById('rev-collection-amount').value = Number(data.collection).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    if (data.available) document.getElementById('rev-available').value = Number(data.available).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    ['rev-collection-amount', 'rev-available'].forEach(id => {
+                        document.getElementById(id)?.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                }
+                break;
+            }
+        }
+    }
+
+    // ============================================================
+    // CSRF Token for AJAX Requests
+    // ============================================================
+    
+    function getCSRFToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
 
     // ============================================================
     // Sound Effects
@@ -240,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.tab-item').forEach(btn => {
         btn.addEventListener('click', () => {
             playClickSound();
-            
+
             const currentTab = document.querySelector('.tab-content.active')?.id;
             if (currentTab === 'interest' && appState.interestChart) {
                 appState.interestChart.destroy(); appState.interestChart = null;
@@ -249,11 +627,27 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (currentTab === 'compare' && appState.compareChart) {
                 appState.compareChart.destroy(); appState.compareChart = null;
             }
-            
+
             document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             btn.classList.add('active');
-            document.getElementById(btn.dataset.tab)?.classList.add('active');
+            const tabId = btn.dataset.tab;
+            document.getElementById(tabId)?.classList.add('active');
+
+            // Scroll to top on tab change (Issue 4)
+            scrollToTop();
+
+            // Rebuild chart from cached data on re-entry (Issue 7)
+            setTimeout(() => {
+                if (tabId === 'interest' && appState.interestChartData && appState.interestChartData.result) {
+                    generateBreakdownTable(appState.interestChartData.result);
+                    generateInterestChart(appState.interestChartData.result);
+                } else if (tabId === 'emi' && appState.emiChartData) {
+                    generateEmiChart(appState.emiChartData.principal, appState.emiChartData.interest);
+                } else if (tabId === 'compare' && appState.compareChartData) {
+                    generateCompareChart(appState.compareChartData.principal, appState.compareChartData.time, appState.compareChartData.rate);
+                }
+            }, 50);
         });
     });
 
@@ -301,6 +695,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderHistory();
             });
         });
+
+        // Click on history item to restore (Issue 6)
+        elements.historyList.querySelectorAll('.history-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.history-item-delete')) return;
+                const id = parseInt(item.dataset.id);
+                const entry = appState.history.find(h => h.id === id);
+                if (entry) {
+                    restoreHistoryItem(entry);
+                    elements.historySidebar?.classList.remove('open');
+                    elements.historyOverlay?.classList.remove('open');
+                    vibrate(10);
+                }
+            });
+        });
     }
     
     elements.openHistory?.addEventListener('click', () => {
@@ -319,8 +728,25 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.historyOverlay?.classList.remove('open');
     });
     
-    elements.clearHistory?.addEventListener('click', () => {
-        if (confirm('Clear all history?')) {
+    function showConfirmModal(message) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('custom-modal-overlay');
+            const msg = document.getElementById('modal-message');
+            const confirmBtn = document.getElementById('modal-confirm');
+            const cancelBtn = document.getElementById('modal-cancel');
+            if (!overlay || !msg || !confirmBtn || !cancelBtn) { resolve(true); return; }
+            msg.textContent = message;
+            overlay.classList.remove('hidden');
+            const cleanup = () => { overlay.classList.add('hidden'); };
+            confirmBtn.onclick = () => { cleanup(); resolve(true); };
+            cancelBtn.onclick = () => { cleanup(); resolve(false); };
+            overlay.onclick = (e) => { if (e.target === overlay) { cleanup(); resolve(false); } };
+        });
+    }
+
+    elements.clearHistory?.addEventListener('click', async () => {
+        const confirmed = await showConfirmModal('Clear all history?');
+        if (confirmed) {
             appState.history = [];
             localStorage.setItem('calcHistory', JSON.stringify(appState.history));
             renderHistory();
@@ -378,7 +804,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Attach validation to all number inputs
     ['principal', 'rate', 'time', 'emi-principal', 'emi-rate', 'emi-tenure', 
-     'compare-principal', 'compare-rate', 'compare-time'].forEach(id => {
+     'compare-principal', 'compare-rate', 'compare-time',
+     'collection-amount', 'total-charges', 'settlenow-charges',
+     'rev-collection-amount', 'rev-available'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', e => formatInputValue(e.target));
@@ -408,6 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.interestForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         playClickSound();
+        vibrate(15);
         
         // Date mode validation
         if (appState.isDateMode) {
@@ -438,7 +867,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const formData = new FormData(elements.interestForm);
-            const response = await fetch('/calculate_interest', { method: 'POST', body: formData });
+            const response = await fetch('/calculate_interest', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCSRFToken() },
+                body: formData
+            });
             const data = await response.json();
 
             setTimeout(() => {
@@ -466,8 +899,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // Generate breakdown & chart for compound interest
                     if (formData.get('interest_type') === 'compound') {
+                        appState.interestChartData = { result: appState.currentResult };
                         generateBreakdownTable(appState.currentResult);
                         generateInterestChart(appState.currentResult);
+                    } else {
+                        appState.interestChartData = null;
                     }
                     
                     // Save to history
@@ -475,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         summary: `₹${appState.currentResult.principal.toLocaleString('en-IN')} @ ${appState.currentResult.rate}%`,
                         ...appState.currentResult
                     });
+                    saveResultsToStorage();
                 }
             }, 800);
         } catch (error) {
@@ -649,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         displayColors: true,
                         boxPadding: 4,
                         callbacks: {
-                            label: (item) => `${item.dataset.label}: Rs. ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
+                            label: (item) => `${item.dataset.label}: ₹ ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
                         }
                     }
                 },
@@ -721,10 +1158,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Store for sharing
             appState.currentEmiResult = {
                 principal, rate, tenure, emi, totalInterest, totalPayment,
+                tenureUnit: document.getElementById('emi-tenure-unit')?.value || 'Months',
                 text: `EMI Calculator Result\nLoan: ₹${principal.toLocaleString('en-IN')}\nRate: ${rate}% p.a.\nTenure: ${tenure} months\n\nMonthly EMI: ₹${emi.toLocaleString('en-IN', {maximumFractionDigits: 0})}\nTotal Interest: ₹${totalInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}\nTotal Payment: ₹${totalPayment.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
             };
             
-            // Generate EMI Chart
+            // Cache chart data and generate EMI Chart
+            appState.emiChartData = { principal, interest: totalInterest };
             generateEmiChart(principal, totalInterest);
             
             // Save to history
@@ -732,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 summary: `₹${emi.toLocaleString('en-IN', {maximumFractionDigits: 0})}/month`,
                 ...appState.currentEmiResult
             });
+            saveResultsToStorage();
         }, 500);
     });
     
@@ -781,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         titleFont: { size: 12, weight: '700', family: 'DM Sans' },
                         bodyFont: { size: 11, family: 'DM Mono' },
                         callbacks: {
-                            label: (item) => ` Rs. ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})} (${((item.raw / (principal + interest)) * 100).toFixed(1)}%)`
+                            label: (item) => ` ₹ ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})} (${((item.raw / (principal + interest)) * 100).toFixed(1)}%)`
                         }
                     }
                 }
@@ -799,12 +1239,390 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.emiChartContainer?.classList.add('hidden');
         elements.emiActions?.classList.add('hidden');
         if (appState.emiChart) appState.emiChart.destroy();
+        appState.emiChartData = null;
         
         ['emi-principal', 'emi-rate', 'emi-tenure'].forEach(id => {
             const el = document.getElementById(id);
             el?.closest('.input-wrapper')?.classList.remove('valid', 'invalid');
         });
     });
+
+    // ============================================================
+    // Settlement Auto-Calculation (Forward & Reverse)
+    // ============================================================
+
+    function formatINR(val) {
+        return '₹' + Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // --- Mode Toggle with State Preservation & Smooth Transition ---
+    elements.settlementModeSlider?.addEventListener('click', (e) => {
+        const option = e.target.closest('.slider-option');
+        if (!option) return;
+
+        playClickSound();
+        const mode = option.dataset.mode;
+        elements.settlementModeInput.value = mode;
+        elements.settlementModeSlider.classList.toggle('active-reverse', mode === 'reverse');
+
+        // Save current mode state before switching
+        saveForwardState();
+        saveReverseState();
+
+        // Hide current section with fade, show target
+        if (mode === 'forward') {
+            elements.settlementReverse?.classList.add('reverse-exit');
+            setTimeout(() => {
+                elements.settlementReverse?.classList.add('hidden');
+                elements.settlementReverse?.classList.remove('reverse-exit');
+                elements.settlementForward?.classList.remove('hidden', 'forward-exit');
+                elements.settlementForward?.classList.add('forward-enter');
+                setTimeout(() => {
+                    elements.settlementForward?.classList.remove('forward-enter');
+                    if (forwardState.collectionAmount || forwardState.totalCharges || forwardState.settlenowCharges) {
+                        calculateSettlement();
+                    }
+                }, 10);
+            }, 150);
+        } else {
+            elements.settlementForward?.classList.add('forward-exit');
+            setTimeout(() => {
+                elements.settlementForward?.classList.add('hidden');
+                elements.settlementForward?.classList.remove('forward-exit');
+                elements.settlementReverse?.classList.remove('hidden', 'reverse-exit');
+                elements.settlementReverse?.classList.add('reverse-enter');
+                setTimeout(() => {
+                    elements.settlementReverse?.classList.remove('reverse-enter');
+                    if (reverseState.collectionAmount || reverseState.available) {
+                        calculateReverseSettlement();
+                    }
+                }, 10);
+            }, 150);
+        }
+    });
+
+    // --- State Save Functions ---
+    function saveForwardState() {
+        forwardState.collectionAmount = elements.collectionAmount?.value || '';
+        forwardState.totalCharges = elements.totalCharges?.value || '';
+        forwardState.settlenowCharges = elements.settlenowCharges?.value || '';
+    }
+
+    function saveReverseState() {
+        reverseState.collectionAmount = elements.revCollectionAmount?.value || '';
+        reverseState.available = elements.revAvailable?.value || '';
+    }
+
+    // --- Forward Mode ---
+    function calculateSettlement() {
+        const collectRaw = elements.collectionAmount?.value.replace(/,/g, '') || '';
+        const chargesRaw = elements.totalCharges?.value.replace(/,/g, '') || '';
+        const settleRaw = elements.settlenowCharges?.value.replace(/,/g, '') || '';
+
+        const collect = parseFloat(collectRaw);
+        const charges = parseFloat(chargesRaw);
+        const settle = parseFloat(settleRaw);
+
+        if (!collectRaw || !chargesRaw || !settleRaw ||
+            isNaN(collect) || isNaN(charges) || isNaN(settle) ||
+            collect < 0 || charges < 0 || settle < 0) {
+            elements.settlementSummary?.classList.add('hidden');
+            elements.settlementActions?.classList.add('hidden');
+            return;
+        }
+
+        const deducted = charges + settle;
+        const available = collect - deducted;
+        const percent = (deducted / collect) * 100;
+
+        if (elements.sDisplayCollection) animateINR(elements.sDisplayCollection, collect);
+        if (elements.sDisplayCharges) animateINR(elements.sDisplayCharges, charges);
+        if (elements.sDisplaySettlenow) animateINR(elements.sDisplaySettlenow, settle);
+        if (elements.sDisplayDeducted) animateINR(elements.sDisplayDeducted, deducted);
+        if (elements.sDisplaySettlement) animateINR(elements.sDisplaySettlement, Math.max(0, available));
+        if (elements.sDisplayPercent) animatePercent(elements.sDisplayPercent, percent);
+
+        elements.settlementSummary?.classList.remove('hidden');
+        elements.settlementActions?.classList.remove('hidden');
+        saveResultsToStorage();
+
+        // Store current result for PDF/share
+        appState.currentSettlementResult = {
+            type: 'forward',
+            collection: collect,
+            charges: charges,
+            settlenow: settle,
+            deducted: deducted,
+            available: available,
+            percent: percent,
+            text: `Settlement Summary\nCollection Amount: ${formatINR(collect)}\nTotal Charges: ${formatINR(charges)}\nSettleNow Charges: ${formatINR(settle)}\nTotal Charges Deducted: ${formatINR(deducted)}\nAvailable for Settlement: ${formatINR(Math.max(0, available))}\nEffective Charge %: ${percent.toFixed(2)}%`
+        };
+
+        saveToHistory('Settlement', {
+            summary: `Available: ${formatINR(Math.max(0, available))} @ ${percent.toFixed(2)}%`,
+            mode: 'forward',
+            collection: collect,
+            charges: charges,
+            settlenow: settle,
+            available: available,
+            deducted: deducted,
+            percent: percent
+        });
+    }
+
+    elements.collectionAmount?.addEventListener('input', () => { saveForwardState(); calculateSettlement(); });
+    elements.totalCharges?.addEventListener('input', () => { saveForwardState(); calculateSettlement(); });
+    elements.settlenowCharges?.addEventListener('input', () => { saveForwardState(); calculateSettlement(); });
+
+    // --- Reverse Mode ---
+    function calculateReverseSettlement() {
+        const collectRaw = elements.revCollectionAmount?.value.replace(/,/g, '') || '';
+        const availableRaw = elements.revAvailable?.value.replace(/,/g, '') || '';
+
+        const collect = parseFloat(collectRaw);
+        const available = parseFloat(availableRaw);
+
+        if (!collectRaw || !availableRaw ||
+            isNaN(collect) || isNaN(available) ||
+            collect < 0 || available < 0 || available > collect) {
+            elements.reverseSummary?.classList.add('hidden');
+            elements.revSettlementActions?.classList.add('hidden');
+            return;
+        }
+
+        const deducted = collect - available;
+        const percent = (deducted / collect) * 100;
+
+        if (elements.rDisplayCollection) animateINR(elements.rDisplayCollection, collect);
+        if (elements.rDisplayAvailable) animateINR(elements.rDisplayAvailable, available);
+        if (elements.rDisplayDeducted) animateINR(elements.rDisplayDeducted, deducted);
+        if (elements.rDisplayPercent) animatePercent(elements.rDisplayPercent, percent);
+
+        elements.reverseSummary?.classList.remove('hidden');
+        elements.revSettlementActions?.classList.remove('hidden');
+        saveResultsToStorage();
+
+        // Store current result for PDF/share
+        appState.currentRevSettlementResult = {
+            type: 'reverse',
+            collection: collect,
+            available: available,
+            deducted: deducted,
+            percent: percent,
+            text: `Reverse Settlement Summary\nCollection Amount: ${formatINR(collect)}\nAvailable for Settlement: ${formatINR(available)}\nTotal Charges Deducted: ${formatINR(deducted)}\nEffective Charge %: ${percent.toFixed(2)}%`
+        };
+
+        saveToHistory('Settlement', {
+            summary: `Deducted: ${formatINR(deducted)} @ ${percent.toFixed(2)}%`,
+            mode: 'reverse',
+            collection: collect,
+            available: available,
+            deducted: deducted,
+            percent: percent
+        });
+    }
+
+    elements.revCollectionAmount?.addEventListener('input', () => { saveReverseState(); calculateReverseSettlement(); });
+    elements.revAvailable?.addEventListener('input', () => { saveReverseState(); calculateReverseSettlement(); });
+
+    // ============================================================
+    // Settlement PDF & Share
+    // ============================================================
+
+    function getSettlementData(mode) {
+        return mode === 'forward' ? appState.currentSettlementResult : appState.currentRevSettlementResult;
+    }
+
+    function generateSettlementPDF(mode) {
+        if (typeof window.jspdf === 'undefined' && typeof jspdf === 'undefined') {
+            alert('PDF generation not available. Please check your internet connection.');
+            return;
+        }
+
+        const data = getSettlementData(mode);
+        if (!data) { alert('No settlement result to export. Please enter values first.'); return; }
+
+        const jspdfLib = window.jspdf || jspdf;
+        const { jsPDF } = jspdfLib;
+        const doc = new jsPDF();
+        const pw = 210;
+        const sid = 'STL-' + Date.now().toString(36).toUpperCase();
+
+        const c = {
+            deep:    [37, 61, 44],
+            forest:  [46, 111, 64],
+            sage:    [104, 186, 127],
+            mint:    [207, 255, 220],
+            white:   [255, 255, 255],
+            offWhite:[248, 253, 249],
+            light:   [235, 248, 238],
+            divider: [210, 235, 216],
+            text:    [37, 61, 44],
+            muted:   [110, 140, 118],
+            red:     [255, 90, 90],
+            gold:    [218, 175, 70],
+        };
+
+        // Header
+        doc.setFillColor(...c.deep);
+        doc.rect(0, 0, pw, 48, 'F');
+        doc.setFillColor(...c.sage);
+        doc.rect(0, 48, pw, 1.5, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(...c.white);
+        doc.text('Settlement Receipt', 54, 24);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...c.sage);
+        doc.text('Advanced Calculator  ·  Payment Summary', 54, 33);
+
+        const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+        // Settlement ID pill
+        doc.setFillColor(...c.forest);
+        doc.roundedRect(128, 12, 64, 10, 3, 3, 'F');
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...c.sage);
+        doc.text('ID: ' + sid, 160, 18.5, { align: 'center' });
+
+        // Date pill
+        doc.setFillColor(...c.forest);
+        doc.roundedRect(128, 26, 64, 10, 3, 3, 'F');
+        doc.setFontSize(7);
+        doc.setTextColor(...c.mint);
+        doc.text(dateStr, 160, 32.5, { align: 'center' });
+
+        // Helpers
+        const sectionHead = (y, title) => {
+            doc.setFillColor(...c.deep);
+            doc.roundedRect(18, y, 174, 9, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(...c.mint);
+            doc.text(title, 24, y + 6.5);
+            return y + 14;
+        };
+
+        const dataRow = (y, label, value, alt = false) => {
+            if (alt) { doc.setFillColor(...c.light); doc.rect(18, y - 4.5, 174, 10, 'F'); }
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9.5);
+            doc.setTextColor(...c.muted);
+            doc.text(label, 24, y);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...c.text);
+            doc.text(value, 188, y, { align: 'right' });
+            return y + 11;
+        };
+
+        const resultCard = (y, label, value, highlight = false, color = null) => {
+            if (highlight) {
+                doc.setFillColor(...(color || c.forest));
+                doc.roundedRect(18, y, 174, 24, 4, 4, 'F');
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.setTextColor(...c.mint);
+                doc.text(label, 24, y + 8);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(16);
+                doc.setTextColor(...c.white);
+                doc.text(value, 24, y + 20);
+            } else {
+                doc.setFillColor(...c.light);
+                doc.roundedRect(18, y, 174, 22, 4, 4, 'F');
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.setTextColor(...(color || c.muted));
+                doc.text(label, 24, y + 7);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(14);
+                doc.setTextColor(...c.text);
+                doc.text(value, 24, y + 18);
+            }
+            return y + (highlight ? 30 : 27);
+        };
+
+        const drawFooter = () => {
+            const ph = doc.internal.pageSize.height;
+            doc.setDrawColor(...c.sage);
+            doc.setLineWidth(0.8);
+            doc.line(18, ph - 18, 192, ph - 18);
+            doc.setFillColor(...c.sage);
+            doc.circle(18, ph - 18, 1.5, 'F');
+            doc.circle(192, ph - 18, 1.5, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...c.muted);
+            doc.text('Generated by Advanced Settlement Calculator  |  ' + sid, 105, ph - 11, { align: 'center' });
+            doc.text('(c) ' + new Date().getFullYear() + '  |  This is a computer-generated receipt.', 105, ph - 6.5, { align: 'center' });
+        };
+
+        const fmt = (v) => Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Content
+        let y = 58;
+
+        // Header label
+        doc.setFillColor(...c.deep);
+        doc.roundedRect(18, y, 100, 7, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...c.sage);
+        doc.text(data.type === 'forward' ? 'FORWARD SETTLEMENT' : 'REVERSE SETTLEMENT', 68, y + 5, { align: 'center' });
+        y += 16;
+
+        // Details
+        y = sectionHead(y, 'SETTLEMENT DETAILS');
+
+        if (data.type === 'forward') {
+            y = dataRow(y, 'Collection Amount', '₹ ' + fmt(data.collection), false);
+            y = dataRow(y, 'Total Charges', '₹ ' + fmt(data.charges), true);
+            y = dataRow(y, 'SettleNow Charges', '₹ ' + fmt(data.settlenow), false);
+            y = dataRow(y, 'Total Charges Deducted', '₹ ' + fmt(data.deducted), true);
+        } else {
+            y = dataRow(y, 'Collection Amount', '₹ ' + fmt(data.collection), false);
+            y = dataRow(y, 'Available for Settlement', '₹ ' + fmt(data.available), true);
+            y = dataRow(y, 'Total Charges Deducted', '₹ ' + fmt(data.deducted), false);
+        }
+        y += 6;
+
+        // Results
+        y = sectionHead(y, 'SUMMARY');
+        y += 4;
+        y = resultCard(y, 'Available for Settlement', '₹ ' + fmt(Math.max(0, data.available)), true);
+        y = resultCard(y, 'Total Charges Deducted', '₹ ' + fmt(data.deducted), false, c.red);
+        y = resultCard(y, 'Effective Charge %', data.percent.toFixed(2) + '%', false, c.gold);
+
+        drawFooter();
+        doc.save('settlement-' + sid.toLowerCase() + '.pdf');
+    }
+
+    function shareSettlement(mode) {
+        const data = getSettlementData(mode);
+        if (!data) { alert('No settlement result to share. Please enter values first.'); return; }
+
+        const shareText = data.text || '';
+        const shareData = { title: 'Settlement Summary', text: shareText, url: window.location.href };
+
+        if (navigator.share) {
+            navigator.share(shareData).catch(() => {});
+        } else {
+            navigator.clipboard.writeText(shareText).then(() => {
+                alert('Settlement summary copied to clipboard!');
+            }).catch(() => {
+                alert('Could not copy to clipboard');
+            });
+        }
+    }
+
+    elements.settlementPdf?.addEventListener('click', () => { playClickSound(); generateSettlementPDF('forward'); });
+    elements.settlementShare?.addEventListener('click', () => { playClickSound(); shareSettlement('forward'); });
+    elements.revSettlementPdf?.addEventListener('click', () => { playClickSound(); generateSettlementPDF('reverse'); });
+    elements.revSettlementShare?.addEventListener('click', () => { playClickSound(); shareSettlement('reverse'); });
 
     // ============================================================
     // Comparison Mode
@@ -814,39 +1632,48 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         playClickSound();
         
-        const principal = parseFloat(document.getElementById('compare-principal').value.replace(/,/g, ''));
-        const rate = parseFloat(document.getElementById('compare-rate').value.replace(/,/g, ''));
-        const time = parseFloat(document.getElementById('compare-time').value.replace(/,/g, ''));
-        
-        if (isNaN(principal) || isNaN(rate) || isNaN(time) || principal <= 0 || rate <= 0 || time <= 0) {
-            return;
-        }
-        
-        // Simple Interest
-        const simpleInterest = (principal * rate * time) / 100;
-        const simpleTotal = principal + simpleInterest;
-        
-        // Compound Interest (annually)
-        const compoundTotal = principal * Math.pow(1 + rate / 100, time);
-        const compoundInterest = compoundTotal - principal;
-        
-        const difference = compoundInterest - simpleInterest;
-        
-        elements.compareSimpleInterest.textContent = `₹${simpleInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
-        elements.compareSimpleTotal.textContent = `₹${simpleTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
-        elements.compareCompoundInterest.textContent = `₹${compoundInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
-        elements.compareCompoundTotal.textContent = `₹${compoundTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
-        elements.compareDifference.textContent = `₹${difference.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
-        
-        elements.compareResults?.classList.remove('hidden');
-        
-        // Generate comparison chart
-        generateCompareChart(principal, time, rate);
-        
-        // Save to history
-        saveToHistory('Comparison', {
-            summary: `Difference: ₹${difference.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
-        });
+        document.getElementById('compare-skeleton')?.classList.remove('hidden');
+        elements.compareResults?.classList.add('hidden');
+        elements.compareChartContainer?.classList.add('hidden');
+
+        setTimeout(() => {
+            document.getElementById('compare-skeleton')?.classList.add('hidden');
+
+            const principal = parseFloat(document.getElementById('compare-principal').value.replace(/,/g, ''));
+            const rate = parseFloat(document.getElementById('compare-rate').value.replace(/,/g, ''));
+            const time = parseFloat(document.getElementById('compare-time').value.replace(/,/g, ''));
+            
+            if (isNaN(principal) || isNaN(rate) || isNaN(time) || principal <= 0 || rate <= 0 || time <= 0) {
+                return;
+            }
+            
+            const simpleInterest = (principal * rate * time) / 100;
+            const simpleTotal = principal + simpleInterest;
+            const compoundTotal = principal * Math.pow(1 + rate / 100, time);
+            const compoundInterest = compoundTotal - principal;
+            const difference = compoundInterest - simpleInterest;
+            
+            elements.compareSimpleInterest.textContent = `₹${simpleInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+            elements.compareSimpleTotal.textContent = `₹${simpleTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+            elements.compareCompoundInterest.textContent = `₹${compoundInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+            elements.compareCompoundTotal.textContent = `₹${compoundTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+            elements.compareDifference.textContent = `₹${difference.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+            
+            elements.compareResults?.classList.remove('hidden');
+            
+            appState.compareChartData = { principal, time, rate };
+            generateCompareChart(principal, time, rate);
+            
+            saveToHistory('Comparison', {
+                summary: `Difference: ₹${difference.toLocaleString('en-IN', {maximumFractionDigits: 0})}`,
+                principal: principal,
+                rate: rate,
+                time: time,
+                simpleInterest: simpleInterest,
+                compoundInterest: compoundInterest,
+                difference: difference
+            });
+        }, 400);
     });
     
     function generateCompareChart(principal, years, rate) {
@@ -955,7 +1782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         displayColors: true,
                         boxPadding: 4,
                         callbacks: {
-                            label: (item) => `${item.dataset.label}: Rs. ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
+                            label: (item) => `${item.dataset.label}: ₹ ${item.raw.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
                         }
                     }
                 },
@@ -979,6 +1806,46 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.compareChartContainer?.classList.remove('hidden');
     }
     
+    // Auto-calculate comparison on input change (Issue 9)
+    function autoCalculateCompare() {
+        const principal = parseFloat(document.getElementById('compare-principal')?.value.replace(/,/g, '') || '');
+        const rate = parseFloat(document.getElementById('compare-rate')?.value.replace(/,/g, '') || '');
+        const time = parseFloat(document.getElementById('compare-time')?.value.replace(/,/g, '') || '');
+
+        if (isNaN(principal) || isNaN(rate) || isNaN(time) || principal <= 0 || rate <= 0 || time <= 0) {
+            return;
+        }
+
+        const simpleInterest = (principal * rate * time) / 100;
+        const simpleTotal = principal + simpleInterest;
+        const compoundTotal = principal * Math.pow(1 + rate / 100, time);
+        const compoundInterest = compoundTotal - principal;
+        const difference = compoundInterest - simpleInterest;
+
+        elements.compareSimpleInterest.textContent = `₹${simpleInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+        elements.compareSimpleTotal.textContent = `₹${simpleTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+        elements.compareCompoundInterest.textContent = `₹${compoundInterest.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+        elements.compareCompoundTotal.textContent = `₹${compoundTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+        elements.compareDifference.textContent = `₹${difference.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+
+        elements.compareResults?.classList.remove('hidden');
+
+        appState.compareChartData = { principal, time, rate };
+        generateCompareChart(principal, time, rate);
+    }
+
+    ['compare-principal', 'compare-rate', 'compare-time'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                const p = document.getElementById('compare-principal')?.value.replace(/,/g, '') || '';
+                const r = document.getElementById('compare-rate')?.value.replace(/,/g, '') || '';
+                const t = document.getElementById('compare-time')?.value.replace(/,/g, '') || '';
+                if (p && r && t) autoCalculateCompare();
+            });
+        }
+    });
+
     // Clear Compare Form
     elements.clearCompare?.addEventListener('click', () => {
         playClickSound();
@@ -989,6 +1856,8 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.compareChart.destroy();
             appState.compareChart = null;
         }
+        
+        appState.compareChartData = null;
         
         ['compare-principal', 'compare-rate', 'compare-time'].forEach(id => {
             const el = document.getElementById(id);
@@ -1244,7 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fmt = (v) => (v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
             
             // Info cards
-            infoCard(18, y, 56, 'PRINCIPAL', `Rs. ${fmt(r.principal)}`, c.sage);
+            infoCard(18, y, 56, 'PRINCIPAL', `₹ ${fmt(r.principal)}`, c.sage);
             infoCard(77, y, 56, 'RATE (P.A.)', `${r.rate}%`, c.gold);
             infoCard(136, y, 56, 'DURATION', `${r.time} ${r.timeUnit}`, c.forest);
             y += 38;
@@ -1266,7 +2135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Details
             y = sectionHead(y, 'CALCULATION DETAILS');
-            y = dataRow(y, 'Principal Amount', `Rs. ${fmt(r.principal)}`, false);
+            y = dataRow(y, 'Principal Amount', `₹ ${fmt(r.principal)}`, false);
             y = dataRow(y, 'Annual Interest Rate', `${r.rate}%`, true);
             y = dataRow(y, 'Time Period', `${r.time} ${r.timeUnit}`, false);
             y = dataRow(y, 'Type', r.type === 'compound' ? 'Compound Interest' : 'Simple Interest', true);
@@ -1276,15 +2145,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Results
             y = sectionHead(y, 'RESULTS');
             y += 4;
-            y = resultCard(y, 'Interest Earned', `Rs. ${fmt(interest)}`, false);
-            y = resultCard(y, 'Total Amount (Principal + Interest)', `Rs. ${fmt(total)}`, true);
+            y = resultCard(y, 'Interest Earned', `₹ ${fmt(interest)}`, false);
+            y = resultCard(y, 'Total Amount (Principal + Interest)', `₹ ${fmt(total)}`, true);
             
         } else if (type === 'emi' && appState.currentEmiResult) {
             const r = appState.currentEmiResult;
             const fmt = (v) => (v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
             
             // Info cards
-            infoCard(18, y, 56, 'LOAN', `Rs. ${fmt(r.principal)}`, c.sage);
+            infoCard(18, y, 56, 'LOAN', `₹ ${fmt(r.principal)}`, c.sage);
             infoCard(77, y, 56, 'RATE (P.A.)', `${r.rate}%`, c.gold);
             infoCard(136, y, 56, 'TENURE', `${r.tenure} mo`, c.forest);
             y += 38;
@@ -1300,7 +2169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Details
             y = sectionHead(y, 'LOAN DETAILS');
-            y = dataRow(y, 'Loan Principal', `Rs. ${fmt(r.principal)}`, false);
+            y = dataRow(y, 'Loan Principal', `₹ ${fmt(r.principal)}`, false);
             y = dataRow(y, 'Annual Interest Rate', `${r.rate}%`, true);
             y = dataRow(y, 'Monthly Rate', `${(r.rate / 12).toFixed(3)}%`, false);
             y = dataRow(y, 'Tenure', `${r.tenure} months (${(r.tenure / 12).toFixed(1)} yrs)`, true);
@@ -1309,9 +2178,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Payment Summary
             y = sectionHead(y, 'PAYMENT SUMMARY');
             y += 4;
-            y = resultCard(y, 'Monthly EMI', `Rs. ${fmt(r.emi)}`, true);
-            y = resultCard(y, 'Total Interest Payable', `Rs. ${fmt(r.totalInterest)}`, false);
-            y = resultCard(y, 'Total Amount Payable', `Rs. ${fmt(r.totalPayment)}`, false);
+            y = resultCard(y, 'Monthly EMI', `₹ ${fmt(r.emi)}`, true);
+            y = resultCard(y, 'Total Interest Payable', `₹ ${fmt(r.totalInterest)}`, false);
+            y = resultCard(y, 'Total Amount Payable', `₹ ${fmt(r.totalPayment)}`, false);
             
             // Ratio bar
             y += 4;
@@ -1375,6 +2244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         if (appState.interestChart) appState.interestChart.destroy();
+        appState.interestChartData = null;
     });
 
     // ============================================================

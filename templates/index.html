@@ -14,7 +14,7 @@
     <!-- Fonts: DM Sans + DM Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -25,6 +25,9 @@
     <!-- jsPDF for PDF Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- CSRF Token for AJAX requests -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     <!-- Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
@@ -53,12 +56,37 @@
                 <i class="bi bi-clock-history"></i>
             </button>
             <h1>Calculator</h1>
-            <button id="sound-toggle" class="icon-btn sound-toggle" aria-label="Toggle sound">
-                <i id="sound-on-icon" class="bi bi-bell"></i>
-                <i id="sound-off-icon" class="bi bi-bell-slash hidden"></i>
-            </button>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <button id="settings-toggle" class="icon-btn" aria-label="Settings">
+                    <i class="bi bi-gear-fill"></i>
+                </button>
+                <button id="sound-toggle" class="icon-btn sound-toggle" aria-label="Toggle sound">
+                    <i id="sound-on-icon" class="bi bi-bell"></i>
+                    <i id="sound-off-icon" class="bi bi-bell-slash hidden"></i>
+                </button>
+            </div>
+            <div id="settings-panel" class="settings-panel hidden">
+                <h3><i class="bi bi-fonts"></i> Text Size</h3>
+                <div class="font-option active" data-size="medium">
+                    <div class="fo-dot"></div>
+                    <span class="fo-label">Medium</span>
+                    <span class="fo-preview">Aa</span>
+                </div>
+                <div class="font-option" data-size="small">
+                    <div class="fo-dot"></div>
+                    <span class="fo-label">Small</span>
+                    <span class="fo-preview">Aa</span>
+                </div>
+                <div class="font-option" data-size="large">
+                    <div class="fo-dot"></div>
+                    <span class="fo-label">Large</span>
+                    <span class="fo-preview">Aa</span>
+                </div>
+            </div>
         </header>
 
+        <!-- Tab content wrapper for swipe gestures -->
+        <div class="tab-content-wrapper" id="tab-content-wrapper">
         <!-- ============================================================
              Interest Calculator Tab
              ============================================================ -->
@@ -283,15 +311,15 @@
             <div id="emi-breakdown" class="emi-summary hidden">
                 <div class="emi-stat">
                     <span class="emi-stat-label"><i class="bi bi-calendar-month"></i> Monthly</span>
-                    <span id="emi-monthly" class="emi-stat-value">₹0</span>
+                    <span id="emi-monthly" class="emi-stat-value">--</span>
                 </div>
                 <div class="emi-stat">
                     <span class="emi-stat-label"><i class="bi bi-cash-stack"></i> Interest</span>
-                    <span id="emi-total-interest" class="emi-stat-value">₹0</span>
+                    <span id="emi-total-interest" class="emi-stat-value">--</span>
                 </div>
                 <div class="emi-stat">
                     <span class="emi-stat-label"><i class="bi bi-wallet2"></i> Total</span>
-                    <span id="emi-total-payment" class="emi-stat-value">₹0</span>
+                    <span id="emi-total-payment" class="emi-stat-value">--</span>
                 </div>
             </div>
             
@@ -308,6 +336,153 @@
                 <button type="button" id="emi-pdf" class="action-btn">
                     <i class="bi bi-file-earmark-pdf-fill"></i> PDF
                 </button>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             Settlement Summary Tab
+             ============================================================ -->
+        <section id="settlement" class="tab-content">
+            <!-- Mode Toggle -->
+            <div class="settlement-mode-toggle">
+                <div class="mode-label"><i class="bi bi-arrow-left-right"></i> Calculator Mode</div>
+                <div class="slider-track" id="settlement-mode-slider">
+                    <input type="hidden" id="settlement-mode" value="forward">
+                    <span class="slider-option active" data-mode="forward"><i class="bi bi-arrow-right"></i> Forward</span>
+                    <span class="slider-option" data-mode="reverse"><i class="bi bi-arrow-left"></i> Reverse</span>
+                    <div class="slider-handle"></div>
+                </div>
+            </div>
+
+            <!-- Forward Mode -->
+            <div id="settlement-forward">
+                <form id="settlement-form" aria-label="Settlement Summary Form">
+                    <div class="input-group">
+                        <div class="input-label"><i class="bi bi-cash-stack"></i> Today's Total Collection Amount</div>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="text" inputmode="decimal" id="collection-amount" name="collection-amount"
+                                   placeholder="0.00" required>
+                        </div>
+                        <span id="collection-amount-error" class="error-text"></span>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="input-label"><i class="bi bi-receipt"></i> Total Charges</div>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="text" inputmode="decimal" id="total-charges" name="total-charges"
+                                   placeholder="0.00" required>
+                        </div>
+                        <span id="total-charges-error" class="error-text"></span>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="input-label"><i class="bi bi-lightning-charge-fill"></i> SettleNow Charges</div>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="text" inputmode="decimal" id="settlenow-charges" name="settlenow-charges"
+                                   placeholder="0.00" required>
+                        </div>
+                        <span id="settlenow-charges-error" class="error-text"></span>
+                    </div>
+                </form>
+
+                <div id="settlement-summary" class="settlement-summary hidden">
+                    <div class="settlement-header">
+                        <i class="bi bi-file-text-fill"></i> Settlement Summary
+                    </div>
+                    <div class="settlement-row">
+                        <span class="settlement-label">Today's Total Collection Amount</span>
+                        <span class="settlement-value settlement-blue" id="s-display-collection">--</span>
+                    </div>
+                    <div class="settlement-row">
+                        <span class="settlement-label">Total Charges</span>
+                        <span class="settlement-value settlement-red" id="s-display-charges">--</span>
+                    </div>
+                    <div class="settlement-row">
+                        <span class="settlement-label">SettleNow Charges</span>
+                        <span class="settlement-value" id="s-display-settlenow">--</span>
+                    </div>
+                    <div class="settlement-result-card">
+                        <div class="src-label">Available for Settlement</div>
+                        <div class="src-value" id="s-display-settlement">--</div>
+                        <div class="src-sub">After all charges deducted</div>
+                    </div>
+                    <div class="settlement-divider"></div>
+                    <div class="settlement-row">
+                        <span class="settlement-label">Total Charges Deducted</span>
+                        <span class="settlement-value settlement-red" id="s-display-deducted">--</span>
+                    </div>
+                    <div class="settlement-row settlement-percent-row">
+                        <span class="settlement-label">Effective Charge Percentage</span>
+                        <span class="settlement-value settlement-orange" id="s-display-percent">--</span>
+                    </div>
+                    <div id="settlement-actions" class="settlement-actions hidden">
+                        <button type="button" id="settlement-pdf" class="action-btn">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+                        </button>
+                        <button type="button" id="settlement-share" class="action-btn">
+                            <i class="bi bi-share-fill"></i> Share Settlement
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reverse Mode -->
+            <div id="settlement-reverse" class="hidden">
+                <form id="settlement-reverse-form" aria-label="Reverse Settlement Form">
+                    <div class="input-group">
+                        <div class="input-label"><i class="bi bi-cash-stack"></i> Today's Total Collection Amount</div>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="text" inputmode="decimal" id="rev-collection-amount" name="rev-collection-amount"
+                                   placeholder="0.00" required>
+                        </div>
+                        <span id="rev-collection-amount-error" class="error-text"></span>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="input-label"><i class="bi bi-wallet2"></i> Available for Settlement Amount</div>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="text" inputmode="decimal" id="rev-available" name="rev-available"
+                                   placeholder="0.00" required>
+                        </div>
+                        <span id="rev-available-error" class="error-text"></span>
+                    </div>
+                </form>
+
+                <div id="reverse-summary" class="settlement-summary hidden">
+                    <div class="settlement-header">
+                        <i class="bi bi-file-text-fill"></i> Reverse Settlement Summary
+                    </div>
+                    <div class="settlement-row">
+                        <span class="settlement-label">Today's Total Collection Amount</span>
+                        <span class="settlement-value settlement-blue" id="r-display-collection">--</span>
+                    </div>
+                    <div class="settlement-row">
+                        <span class="settlement-label">Available for Settlement Amount</span>
+                        <span class="settlement-value settlement-green" id="r-display-available">--</span>
+                    </div>
+                    <div class="settlement-result-card">
+                        <div class="src-label">Total Charges Deducted</div>
+                        <div class="src-value" id="r-display-deducted">--</div>
+                        <div class="src-sub">Collection minus available amount</div>
+                    </div>
+                    <div class="settlement-row settlement-percent-row">
+                        <span class="settlement-label">Effective Charge Percentage</span>
+                        <span class="settlement-value settlement-orange" id="r-display-percent">--</span>
+                    </div>
+                    <div id="rev-settlement-actions" class="settlement-actions hidden">
+                        <button type="button" id="rev-settlement-pdf" class="action-btn">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+                        </button>
+                        <button type="button" id="rev-settlement-share" class="action-btn">
+                            <i class="bi bi-share-fill"></i> Share Settlement
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -425,15 +600,29 @@
                 </div>
             </div>
         </section>
-    </div>
+    </div>  <!-- /tab-content-wrapper -->
+    </div>  <!-- /container -->
 
     <!-- Bottom Tab Bar -->
     <nav class="tab-bar-bottom" id="tab-bar-bottom">
         <button class="tab-item active" data-tab="interest"><i class="bi bi-percent"></i><span>Interest</span></button>
         <button class="tab-item" data-tab="emi"><i class="bi bi-bank"></i><span>EMI</span></button>
+        <button class="tab-item" data-tab="settlement"><i class="bi bi-wallet2"></i><span>Settle</span></button>
         <button class="tab-item" data-tab="compare"><i class="bi bi-bar-chart-line"></i><span>Compare</span></button>
         <button class="tab-item" data-tab="normal"><i class="bi bi-grid-3x3-gap-fill"></i><span>Calc</span></button>
     </nav>
+
+    <!-- Custom Modal (replaces confirm()) -->
+    <div id="custom-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <p id="modal-message" class="modal-message"></p>
+            <div class="modal-actions">
+                <button id="modal-cancel" class="action-btn">Cancel</button>
+                <button id="modal-confirm" class="action-btn" style="background:var(--forest);color:var(--mint);border-color:var(--sage);">Confirm</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Audio for Sound Effects -->
     <audio id="click-sound" preload="auto">

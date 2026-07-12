@@ -7,7 +7,7 @@
 // Configuration
 // ============================================================
 
-const CACHE_NAME = 'interest-calc-v3';
+const CACHE_NAME = 'interest-calc-v4';
 
 const ASSETS_TO_CACHE = [
     '/',
@@ -40,7 +40,9 @@ self.addEventListener('install', (event) => {
 // ============================================================
 
 self.addEventListener('fetch', (event) => {
-    // Handle API calls differently (network first)
+    const url = new URL(event.request.url);
+    
+    // API calls — network first (CSRF token required fresh)
     if (event.request.url.includes('/calculate')) {
         event.respondWith(
             fetch(event.request)
@@ -53,12 +55,20 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
-    // For static assets, use cache-first strategy
+    // HTML pages — network first (CSRF token in page must be fresh)
+    if (url.pathname === '/' || url.pathname.endsWith('.html')) {
+        event.respondWith(
+            fetch(event.request)
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+    
+    // Static assets — cache-first with background refresh
     event.respondWith(
         caches.match(event.request)
             .then(cachedResponse => {
                 if (cachedResponse) {
-                    // Update cache in background with cloned response
                     fetch(event.request).then(response => {
                         if (response.ok) {
                             const responseClone = response.clone();

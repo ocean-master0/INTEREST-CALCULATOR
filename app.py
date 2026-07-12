@@ -6,8 +6,21 @@ A web application for calculating simple and compound interest.
 import os
 import time
 from collections import defaultdict
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from markupsafe import Markup
+from flask_wtf.csrf import CSRFProtect, CSRFError
+
+load_dotenv()
+
+# ============================================================
+# Flask-Talisman (optional — only in production)
+# ============================================================
+
+try:
+    from flask_talisman import Talisman
+except ImportError:
+    Talisman = None
 
 # ============================================================
 # Configuration Constants
@@ -43,13 +56,91 @@ COMPOUND_FREQUENCIES = {
 
 app = Flask(__name__)
 
+# ── Secret Key ─────────────────────────────────────────────
+_secret_key = os.environ.get("SECRET_KEY")
+if not _secret_key:
+    if os.environ.get("RENDER"):
+        raise RuntimeError(
+            "SECRET_KEY environment variable is not set. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+    _secret_key = "dev-secret-key-do-not-use-in-production"
+app.config["SECRET_KEY"] = _secret_key
+
+# ── Secure Cookie Configuration ────────────────────────────
+_is_production = bool(os.environ.get("RENDER"))
+app.config["SESSION_COOKIE_SECURE"] = _is_production
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# ── CSRF Protection ───────────────────────────────────────
+csrf = CSRFProtect(app)
+
+# ── Security Headers (production only) ────────────────────
+if _is_production and Talisman is not None:
+    Talisman(
+        app,
+        force_https=True,
+        force_https_permanent=True,
+        strict_transport_security=True,
+        strict_transport_security_preload=True,
+        strict_transport_security_max_age=31536000,
+        x_frame_options="DENY",
+        x_content_type_options="nosniff",
+        referrer_policy="strict-origin-when-cross-origin",
+        content_security_policy={
+            "default-src": "'self'",
+            "script-src": [
+                "'self'",
+                "cdn.jsdelivr.net",
+                "cdnjs.cloudflare.com",
+            ],
+            "style-src": [
+                "'self'",
+                "'unsafe-inline'",
+                "cdn.jsdelivr.net",
+                "fonts.googleapis.com",
+            ],
+            "font-src": [
+                "'self'",
+                "cdn.jsdelivr.net",
+                "fonts.gstatic.com",
+            ],
+            "img-src": ["'self'", "data:"],
+            "media-src": ["'self'", "data:"],
+            "connect-src": "'self'",
+            "frame-ancestors": "'none'",
+            "form-action": "'self'",
+        },
+        content_security_policy_nonce_in=None,
+    )
+
+# ============================================================
+# CSRF Error Handler
+# ============================================================
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    """Return a safe error message when CSRF validation fails."""
+    return jsonify({"error": "CSRF validation failed. Please refresh the page and try again."}), 400
+
+
 # ============================================================
 # Helper Functions
 # ============================================================
 
-def parse_number(value: str) -> float:
-    """Parse a number string, removing commas."""
-    return float(value.replace(',', ''))
+
+def parse_number(value, field_name: str = "value") -> float:
+    """Parse a number string, removing commas. Returns field-specific error on failure."""
+    if value is None:
+        raise ValueError(f"Please enter a valid {field_name}")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Please enter a valid {field_name}")
+    try:
+        return float(value.replace(',', ''))
+    except (ValueError, TypeError):
+        raise ValueError(f"Please enter a valid {field_name}")
 
 
 def calculate_simple_interest(principal: float, rate: float, time: float) -> tuple:
@@ -70,7 +161,7 @@ def calculate_compound_interest(principal: float, rate: float, time: float, freq
 def format_result(interest_type: str, interest: float, total: float) -> str:
     """
     Format the calculation result as HTML.
-    
+
     Note: This function is safe from XSS as it only uses pre-validated numeric values.
     The interest and total parameters are always floats from calculation functions.
     """
@@ -88,10 +179,10 @@ def is_rate_limited(ip: str) -> bool:
     current_time = time.time()
     # Clean old entries
     rate_limit_store[ip] = [t for t in rate_limit_store[ip] if current_time - t < RATE_LIMIT_WINDOW]
-    
+
     if len(rate_limit_store[ip]) >= RATE_LIMIT_REQUESTS:
         return True
-    
+
     rate_limit_store[ip].append(current_time)
     return False
 
@@ -99,6 +190,7 @@ def is_rate_limited(ip: str) -> bool:
 # ============================================================
 # Routes
 # ============================================================
+
 
 @app.route('/')
 def index():
@@ -128,7 +220,7 @@ def chrome_devtools():
 def calculate_interest():
     """
     Calculate interest based on form data.
-    
+
     Expected form fields:
         - principal: Principal amount
         - rate: Interest rate (% per annum)
@@ -141,25 +233,30 @@ def calculate_interest():
     client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     if is_rate_limited(client_ip):
         return jsonify({'error': 'Too many requests. Please wait a moment.'}), 429
-    
+
     try:
-        # Parse form data
-        principal = parse_number(request.form['principal'])
-        rate = parse_number(request.form['rate'])
-        time_input = parse_number(request.form['time'])
-        time_unit = request.form['time_unit']
-        interest_type = request.form['interest_type']
+        # Parse form data with field-specific validation
+        principal = parse_number(request.form.get('principal'), 'amount')
+        rate = parse_number(request.form.get('rate'), 'rate')
+        time_input = parse_number(request.form.get('time'), 'time period')
+        time_unit = request.form.get('time_unit', '')
+        interest_type = request.form.get('interest_type', '')
         frequency = request.form.get('frequency', 'Annually')
+
+        if not time_unit:
+            return jsonify({'error': 'Please select a time unit.'}), 400
+        if not interest_type:
+            return jsonify({'error': 'Please select an interest type.'}), 400
 
         # Validate inputs
         if principal < 0 or rate < 0 or time_input < 0:
-            return jsonify({'error': 'Negative values are not allowed.'})
+            return jsonify({'error': 'Negative values are not allowed.'}), 400
 
         if time_input > MAX_TIME_YEARS and time_unit == "Years":
-            return jsonify({'error': f'Time period is too long (max {MAX_TIME_YEARS} years).'})
+            return jsonify({'error': f'Time period is too long (max {MAX_TIME_YEARS} years).'}), 400
 
         if time_unit == "Days" and time_input > 365000:
-            return jsonify({'error': 'Date range too large (max ~1000 years).'})
+            return jsonify({'error': 'Date range too large (max ~1000 years).'}), 400
 
         # Convert time to years
         time_in_years = time_input * TIME_CONVERSIONS.get(time_unit, 1)
@@ -171,16 +268,14 @@ def calculate_interest():
             try:
                 interest, total = calculate_compound_interest(principal, rate, time_in_years, frequency)
             except OverflowError:
-                return jsonify({'error': 'Result too large to calculate.'})
+                return jsonify({'error': 'Result too large to calculate.'}), 400
         else:
-            return jsonify({'error': 'Please select an interest type.'})
+            return jsonify({'error': 'Please select an interest type.'}), 400
 
         return jsonify({'result': format_result(interest_type, interest, total)})
 
-    except ValueError:
-        return jsonify({'error': 'Please enter valid numeric values.'})
-    except KeyError as e:
-        return jsonify({'error': f'Missing required field: {e}'})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
 
 # ============================================================
@@ -188,7 +283,5 @@ def calculate_interest():
 # ============================================================
 
 if __name__ == '__main__':
-    is_production = os.environ.get('RENDER') is not None
     port = int(os.environ.get('PORT', DEFAULT_PORT))
-    
-    app.run(host='0.0.0.0', port=port, debug=not is_production)
+    app.run(host='0.0.0.0', port=port, debug=not _is_production)
