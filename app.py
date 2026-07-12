@@ -59,12 +59,10 @@ app = Flask(__name__)
 # ── Secret Key ─────────────────────────────────────────────
 _secret_key = os.environ.get("SECRET_KEY")
 if not _secret_key:
-    if os.environ.get("RENDER"):
-        raise RuntimeError(
-            "SECRET_KEY environment variable is not set. "
-            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-        )
-    _secret_key = "dev-secret-key-do-not-use-in-production"
+    import secrets
+    _secret_key = secrets.token_hex(32)
+    if not os.environ.get("RENDER"):
+        print("WARNING: Using a random SECRET_KEY. Set SECRET_KEY env var for persistence.")
 app.config["SECRET_KEY"] = _secret_key
 
 # ── Secure Cookie Configuration ────────────────────────────
