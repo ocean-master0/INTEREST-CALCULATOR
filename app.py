@@ -83,8 +83,7 @@ if _is_production and Talisman is not None:
         strict_transport_security=True,
         strict_transport_security_preload=True,
         strict_transport_security_max_age=31536000,
-        x_frame_options="DENY",
-        x_content_type_options="nosniff",
+        frame_options="DENY",
         referrer_policy="strict-origin-when-cross-origin",
         content_security_policy={
             "default-src": "'self'",
