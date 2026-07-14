@@ -6,6 +6,15 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
+    // Splash Screen — Fade out on first paint
+    // ============================================================
+    
+    setTimeout(() => {
+        const splash = document.getElementById('splash-screen');
+        if (splash) splash.classList.add('hidden');
+    }, 800);
+    
+    // ============================================================
     // Service Worker Registration (PWA)
     // ============================================================
     
@@ -122,7 +131,41 @@ document.addEventListener('DOMContentLoaded', () => {
         reverseSummary: document.getElementById('reverse-summary'),
         revSettlementActions: document.getElementById('rev-settlement-actions'),
         revSettlementPdf: document.getElementById('rev-settlement-pdf'),
-        revSettlementShare: document.getElementById('rev-settlement-share')
+        revSettlementShare: document.getElementById('rev-settlement-share'),
+
+        // Bill Split
+        splitForm: document.getElementById('split-form'),
+        splitTotal: document.getElementById('split-total'),
+        splitPeople: document.getElementById('split-people'),
+        peopleMinus: document.getElementById('people-minus'),
+        peoplePlus: document.getElementById('people-plus'),
+        peopleDetails: document.getElementById('people-details'),
+        splitModeChips: document.getElementById('split-mode-chips'),
+        splitModeInput: document.getElementById('split-mode'),
+        itemsSection: document.getElementById('items-section'),
+        itemsList: document.getElementById('items-list'),
+        addItemBtn: document.getElementById('add-item-btn'),
+        splitTax: document.getElementById('split-tax'),
+        splitTip: document.getElementById('split-tip'),
+        splitDiscount: document.getElementById('split-discount'),
+        roundToggle: document.getElementById('round-toggle'),
+        splitTaxToggle: document.getElementById('split-tax-toggle'),
+        splitTaxMode: document.getElementById('split-tax-mode'),
+        clearSplit: document.getElementById('clear-split'),
+        splitResult: document.getElementById('split-result'),
+        splitSkeleton: document.getElementById('split-skeleton'),
+        splitBreakdown: document.getElementById('split-breakdown'),
+        splitPeopleResult: document.getElementById('split-people-result'),
+        splitSubtotal: document.getElementById('s-breakdown-subtotal'),
+        splitTaxDisplay: document.getElementById('s-breakdown-tax'),
+        splitTipDisplay: document.getElementById('s-breakdown-tip'),
+        splitDiscountDisplay: document.getElementById('s-breakdown-discount'),
+        splitTotalDisplay: document.getElementById('s-breakdown-total'),
+        splitSettlement: document.getElementById('split-settlement'),
+        splitSettlementBody: document.getElementById('split-settlement-body'),
+        splitActions: document.getElementById('split-actions'),
+        splitShare: document.getElementById('split-share'),
+        splitWhatsapp: document.getElementById('split-whatsapp')
     };
 
     // ============================================================
@@ -134,6 +177,16 @@ document.addEventListener('DOMContentLoaded', () => {
         isResultState: false
     };
     
+    let splitState = {
+        peopleCount: 2,
+        personNames: ['Person 1', 'Person 2'],
+        mode: 'equal',
+        items: [],
+        roundOff: false,
+        proportionalTax: true,
+        currentResult: null
+    };
+
     let appState = {
         soundEnabled: localStorage.getItem('soundEnabled') !== 'false',
         history: JSON.parse(localStorage.getItem('calcHistory') || '[]'),
@@ -141,6 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEmiResult: null,
         currentSettlementResult: null,
         currentRevSettlementResult: null,
+        currentSplitResult: null,
         interestChart: null,
         emiChart: null,
         compareChart: null,
@@ -165,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentEmiResult: appState.currentEmiResult ? { ...appState.currentEmiResult, text: undefined } : null,
                 currentSettlementResult: appState.currentSettlementResult ? { ...appState.currentSettlementResult } : null,
                 currentRevSettlementResult: appState.currentRevSettlementResult ? { ...appState.currentRevSettlementResult } : null,
+                currentSplitResult: appState.currentSplitResult ? { ...appState.currentSplitResult, text: undefined } : null,
             };
             localStorage.setItem('calcResults', JSON.stringify(data));
         } catch (e) {}
@@ -182,6 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     elements.interestResult.innerHTML = `${data.currentResult.type === 'compound' ? 'Compound' : 'Simple'} Interest: ₹${Number(data.currentResult.principal * data.currentResult.rate / 100).toLocaleString('en-IN', {maximumFractionDigits: 2})}<br>Total Amount: ₹${(data.currentResult.principal + data.currentResult.principal * data.currentResult.rate / 100).toLocaleString('en-IN', {maximumFractionDigits: 2})}`;
                     elements.resultActions?.classList.remove('hidden');
                 }
+            }
+            if (data.currentSplitResult) {
+                appState.currentSplitResult = data.currentSplitResult;
+                appState.currentSplitResult.text = '';
             }
             if (data.currentEmiResult) {
                 appState.currentEmiResult = data.currentEmiResult;
@@ -313,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.getElementById('tab-content-wrapper');
         if (!wrapper) return;
 
-        const tabs = ['interest', 'emi', 'settlement', 'compare', 'normal'];
+        const tabs = ['interest', 'emi', 'settlement', 'split', 'compare', 'normal'];
         let startX = 0;
         let startY = 0;
         let isSwiping = false;
@@ -457,6 +516,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     ['compare-principal', 'compare-rate', 'compare-time'].forEach(id => {
                         document.getElementById(id)?.dispatchEvent(new Event('input', { bubbles: true }));
                     });
+                }
+                break;
+            }
+            case 'Bill Split': {
+                switchToTab('split');
+                if (data.shares) {
+                    elements.splitTotal.value = Number(data.grandTotal || data.subtotal || 0).toLocaleString('en-IN');
+                    if (data.taxAmt) elements.splitTax.value = data.taxAmt.toFixed(2);
+                    if (data.tipAmt) elements.splitTip.value = data.tipAmt.toFixed(2);
+                    if (data.discount) elements.splitDiscount.value = data.discount.toFixed(2);
                 }
                 break;
             }
@@ -806,7 +875,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ['principal', 'rate', 'time', 'emi-principal', 'emi-rate', 'emi-tenure', 
      'compare-principal', 'compare-rate', 'compare-time',
      'collection-amount', 'total-charges', 'settlenow-charges',
-     'rev-collection-amount', 'rev-available'].forEach(id => {
+     'rev-collection-amount', 'rev-available',
+     'split-total', 'split-tax', 'split-tip', 'split-discount'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', e => formatInputValue(e.target));
@@ -1246,6 +1316,549 @@ document.addEventListener('DOMContentLoaded', () => {
             el?.closest('.input-wrapper')?.classList.remove('valid', 'invalid');
         });
     });
+
+    // ============================================================
+    // Bill Split Feature
+    // ============================================================
+
+    const PERSON_COLORS = ['#a67c52', '#b89068', '#c9a87a', '#dbb88a', '#8d6e4c', '#7a5e3f', '#6b4e34', '#5c3f28', '#a0916b', '#b3a07a'];
+
+    function initSplitPeople() {
+        const count = splitState.peopleCount;
+        elements.peopleDetails.innerHTML = '';
+        for (let i = 0; i < count; i++) {
+            const name = splitState.personNames[i] || `Person ${i + 1}`;
+            const color = PERSON_COLORS[i % PERSON_COLORS.length];
+            const row = document.createElement('div');
+            row.className = 'person-input-row';
+            row.dataset.index = i;
+            const showValue = splitState.mode === 'custom' || splitState.mode === 'percent' || splitState.mode === 'ratio';
+            row.innerHTML = `
+                <span class="person-color-dot" style="background:${color}"></span>
+                <input type="text" class="person-name-input" value="${name}" placeholder="Name" data-index="${i}">
+                ${showValue ? `<input type="text" inputmode="decimal" class="person-value-input" placeholder="${splitState.mode === 'percent' ? '%' : splitState.mode === 'ratio' ? 'Share' : '₹'}" data-index="${i}">` : ''}
+                <span class="person-share-display" data-index="${i}"></span>
+            `;
+            elements.peopleDetails.appendChild(row);
+
+            const nameInput = row.querySelector('.person-name-input');
+            nameInput.addEventListener('input', () => {
+                splitState.personNames[i] = nameInput.value || `Person ${i + 1}`;
+            });
+
+            const valInput = row.querySelector('.person-value-input');
+            if (valInput) {
+                valInput.addEventListener('input', () => {
+                    formatInputValue(valInput);
+                    autoCalculateSplit();
+                });
+            }
+        }
+        if (splitState.mode !== 'equal' && splitState.mode !== 'items') {
+            autoCalculateSplit();
+        }
+    }
+
+    function autoCalculateSplit() {
+        const totalRaw = elements.splitTotal?.value.replace(/,/g, '') || '';
+        const total = parseFloat(totalRaw);
+        if (!totalRaw || isNaN(total) || total <= 0) {
+            hideSplitResults();
+            return;
+        }
+        calculateSplit();
+    }
+
+    function calculateSplit() {
+        const totalRaw = elements.splitTotal?.value.replace(/,/g, '') || '';
+        const total = parseFloat(totalRaw);
+        if (!totalRaw || isNaN(total) || total <= 0) {
+            hideSplitResults();
+            return;
+        }
+
+        const taxRaw = elements.splitTax?.value.replace(/,/g, '') || '';
+        const tipRaw = elements.splitTip?.value.replace(/,/g, '') || '';
+        const discRaw = elements.splitDiscount?.value.replace(/,/g, '') || '';
+        const taxPct = parseFloat(taxRaw) || 0;
+        const tipPct = parseFloat(tipRaw) || 0;
+        const discount = parseFloat(discRaw) || 0;
+        const count = splitState.peopleCount;
+        const roundOff = splitState.roundOff;
+        const proportional = splitState.proportionalTax;
+
+        let subtotal = total - discount;
+        const taxAmount = subtotal * taxPct / 100;
+        const tipAmount = subtotal * tipPct / 100;
+        const grandTotal = subtotal + taxAmount + tipAmount;
+
+        let shares = [];
+
+        if (splitState.mode === 'equal') {
+            const perPerson = grandTotal / count;
+            for (let i = 0; i < count; i++) {
+                shares.push(roundOff ? Math.round(perPerson) : perPerson);
+            }
+        } else if (splitState.mode === 'custom') {
+            let customTotal = 0;
+            const customValues = [];
+            for (let i = 0; i < count; i++) {
+                const input = document.querySelector(`.person-value-input[data-index="${i}"]`);
+                const val = parseFloat(input?.value.replace(/,/g, '') || '0');
+                customValues.push(val || 0);
+                customTotal += val || 0;
+            }
+            if (customTotal <= 0) { hideSplitResults(); return; }
+            const factor = grandTotal / customTotal;
+            for (let i = 0; i < count; i++) {
+                const share = customValues[i] * factor;
+                shares.push(roundOff ? Math.round(share) : share);
+            }
+        } else if (splitState.mode === 'percent') {
+            let pctTotal = 0;
+            const pcts = [];
+            for (let i = 0; i < count; i++) {
+                const input = document.querySelector(`.person-value-input[data-index="${i}"]`);
+                const val = parseFloat(input?.value.replace(/,/g, '') || '0');
+                pcts.push(val || 0);
+                pctTotal += val || 0;
+            }
+            if (pctTotal <= 0) { hideSplitResults(); return; }
+            const factor = 100 / pctTotal;
+            for (let i = 0; i < count; i++) {
+                const share = grandTotal * (pcts[i] * factor) / 100;
+                shares.push(roundOff ? Math.round(share) : share);
+            }
+        } else if (splitState.mode === 'ratio') {
+            let ratioTotal = 0;
+            const ratios = [];
+            for (let i = 0; i < count; i++) {
+                const input = document.querySelector(`.person-value-input[data-index="${i}"]`);
+                const val = parseFloat(input?.value.replace(/,/g, '') || '0');
+                ratios.push(val || 0);
+                ratioTotal += val || 0;
+            }
+            if (ratioTotal <= 0) { hideSplitResults(); return; }
+            for (let i = 0; i < count; i++) {
+                const share = grandTotal * (ratios[i] / ratioTotal);
+                shares.push(roundOff ? Math.round(share) : share);
+            }
+        } else if (splitState.mode === 'items') {
+            const itemAmounts = {};
+            for (let i = 0; i < count; i++) itemAmounts[splitState.personNames[i] || `Person ${i+1}`] = 0;
+            for (const item of splitState.items) {
+                const amt = parseFloat(item.amount) || 0;
+                const assignee = item.assignee || splitState.personNames[0];
+                if (itemAmounts[assignee] !== undefined) itemAmounts[assignee] += amt;
+            }
+            let itemTotal = 0;
+            const itemShares = [];
+            for (let i = 0; i < count; i++) {
+                const name = splitState.personNames[i] || `Person ${i+1}`;
+                const amt = itemAmounts[name] || 0;
+                itemShares.push(amt);
+                itemTotal += amt;
+            }
+            if (itemTotal <= 0) { hideSplitResults(); return; }
+            if (proportional) {
+                const factor = grandTotal / itemTotal;
+                for (let i = 0; i < count; i++) {
+                    shares.push(roundOff ? Math.round(itemShares[i] * factor) : itemShares[i] * factor);
+                }
+            } else {
+                const taxTipPerPerson = (taxAmount + tipAmount) / count;
+                for (let i = 0; i < count; i++) {
+                    const share = itemShares[i] + taxTipPerPerson;
+                    shares.push(roundOff ? Math.round(share) : share);
+                }
+            }
+        }
+
+        // Adjust rounding differences
+        if (roundOff) {
+            const sumRounded = shares.reduce((a, b) => a + b, 0);
+            const diff = Math.round(grandTotal) - sumRounded;
+            if (diff !== 0 && shares.length > 0) shares[0] += diff;
+        }
+
+        displaySplitResults(shares, subtotal, taxAmount, tipAmount, discount, grandTotal);
+    }
+
+    function displaySplitResults(shares, subtotal, taxAmt, tipAmt, discount, grandTotal) {
+        const count = splitState.peopleCount;
+        const fmt = (v) => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+        // Update person share displays
+        for (let i = 0; i < count; i++) {
+            const display = document.querySelector(`.person-share-display[data-index="${i}"]`);
+            if (display) display.textContent = fmt(shares[i]);
+        }
+
+        // Generate result summary
+        let resultHTML = '<div class="result-pills">';
+        for (let i = 0; i < count; i++) {
+            const name = splitState.personNames[i] || `Person ${i+1}`;
+            const color = PERSON_COLORS[i % PERSON_COLORS.length];
+            resultHTML += `
+                <div class="result-pill">
+                    <div class="pill-label" style="color:${color}">${name}</div>
+                    <div class="pill-value">${fmt(shares[i])}</div>
+                </div>`;
+        }
+        resultHTML += '</div>';
+        elements.splitResult.innerHTML = resultHTML;
+        elements.splitSkeleton?.classList.add('hidden');
+
+        // Breakdown cards
+        let breakdownHTML = '';
+        for (let i = 0; i < count; i++) {
+            const name = splitState.personNames[i] || `Person ${i+1}`;
+            const color = PERSON_COLORS[i % PERSON_COLORS.length];
+            let detail = '';
+            if (splitState.mode === 'equal') detail = 'Equal share';
+            else if (splitState.mode === 'custom') detail = 'Custom amount (adjusted)';
+            else if (splitState.mode === 'percent') detail = 'Percentage based';
+            else if (splitState.mode === 'ratio') detail = 'Ratio based';
+            else if (splitState.mode === 'items') detail = 'Items + shared extras';
+            breakdownHTML += `
+                <div class="split-person-card">
+                    <div class="spc-left">
+                        <span class="spc-dot" style="background:${color}"></span>
+                        <div>
+                            <div class="spc-name">${name}</div>
+                            <div class="spc-detail">${detail}</div>
+                        </div>
+                    </div>
+                    <div class="spc-amount">${fmt(shares[i])}</div>
+                </div>`;
+        }
+        elements.splitPeopleResult.innerHTML = breakdownHTML;
+        elements.splitBreakdown?.classList.remove('hidden');
+
+        // Summary strip
+        if (elements.splitSubtotal) elements.splitSubtotal.textContent = fmt(subtotal + discount);
+        if (elements.splitTaxDisplay) elements.splitTaxDisplay.textContent = fmt(taxAmt);
+        if (elements.splitTipDisplay) elements.splitTipDisplay.textContent = fmt(tipAmt);
+        if (elements.splitDiscountDisplay) elements.splitDiscountDisplay.textContent = '-' + fmt(discount);
+        if (elements.splitTotalDisplay) elements.splitTotalDisplay.textContent = fmt(grandTotal);
+
+        // Settlement suggestions
+        const avg = grandTotal / count;
+        let settleHTML = '';
+        const payments = [];
+        for (let i = 0; i < count; i++) {
+            const diff = shares[i] - avg;
+            payments.push({ name: splitState.personNames[i] || `Person ${i+1}`, diff });
+        }
+        const debtors = payments.filter(p => p.diff < 0).sort((a, b) => a.diff - b.diff);
+        const creditors = payments.filter(p => p.diff > 0).sort((a, b) => b.diff - a.diff);
+        let di = 0, ci = 0;
+        while (di < debtors.length && ci < creditors.length) {
+            const owed = -debtors[di].diff;
+            const gets = creditors[ci].diff;
+            const amount = Math.min(owed, gets);
+            if (amount > 1) {
+                settleHTML += `
+                    <div class="settlement-suggestion">
+                        <i class="bi bi-arrow-right-circle-fill ss-arrow"></i>
+                        <span class="ss-text"><strong>${debtors[di].name}</strong> pays <strong>${creditors[ci].name}</strong></span>
+                        <span class="ss-amount">${fmt(amount)}</span>
+                    </div>`;
+            }
+            debtors[di].diff += amount;
+            creditors[ci].diff -= amount;
+            if (Math.abs(debtors[di].diff) < 1) di++;
+            if (Math.abs(creditors[ci].diff) < 1) ci++;
+        }
+        if (settleHTML) {
+            elements.splitSettlementBody.innerHTML = settleHTML;
+            elements.splitSettlement?.classList.remove('hidden');
+        } else {
+            elements.splitSettlement?.classList.add('hidden');
+        }
+
+        elements.splitActions?.classList.remove('hidden');
+
+        // Store result
+        appState.currentSplitResult = {
+            shares, subtotal, taxAmt, tipAmt, discount, grandTotal,
+            names: [...splitState.personNames],
+            mode: splitState.mode,
+            roundOff: splitState.roundOff,
+            text: generateSplitText(shares, subtotal, taxAmt, tipAmt, discount, grandTotal)
+        };
+
+        saveToHistory('Bill Split', {
+            summary: `${count} people · ${fmt(grandTotal)}`,
+            ...appState.currentSplitResult
+        });
+        saveResultsToStorage();
+    }
+
+    function generateSplitText(shares, subtotal, taxAmt, tipAmt, discount, grandTotal) {
+        const fmt = (v) => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+        const names = splitState.personNames;
+        let text = `📋 Bill Split Summary\n${'━'.repeat(28)}\n`;
+        text += `Subtotal: ${fmt(subtotal + discount)}\n`;
+        if (taxAmt > 0) text += `Tax: ${fmt(taxAmt)}\n`;
+        if (tipAmt > 0) text += `Tip: ${fmt(tipAmt)}\n`;
+        if (discount > 0) text += `Discount: -${fmt(discount)}\n`;
+        text += `${'─'.repeat(28)}\n`;
+        text += `Grand Total: ${fmt(grandTotal)}\n`;
+        text += `${'━'.repeat(28)}\n`;
+        text += `🧑 Split (${splitState.mode}):\n`;
+        for (let i = 0; i < names.length; i++) {
+            text += `  ${names[i]}: ${fmt(shares[i])}\n`;
+        }
+        return text;
+    }
+
+    function hideSplitResults() {
+        elements.splitResult.innerHTML = '';
+        elements.splitBreakdown?.classList.add('hidden');
+        elements.splitSettlement?.classList.add('hidden');
+        elements.splitActions?.classList.add('hidden');
+        for (let i = 0; i < splitState.peopleCount; i++) {
+            const display = document.querySelector(`.person-share-display[data-index="${i}"]`);
+            if (display) display.textContent = '';
+        }
+    }
+
+    // --- People Count Buttons ---
+    elements.peopleMinus?.addEventListener('click', () => {
+        playClickSound();
+        if (splitState.peopleCount > 2) {
+            splitState.peopleCount--;
+            splitState.personNames = splitState.personNames.slice(0, splitState.peopleCount);
+            elements.splitPeople.value = splitState.peopleCount;
+            initSplitPeople();
+            if (elements.splitTotal?.value) autoCalculateSplit();
+        } else {
+            vibrate(20);
+        }
+    });
+
+    elements.peoplePlus?.addEventListener('click', () => {
+        playClickSound();
+        if (splitState.peopleCount < 10) {
+            splitState.peopleCount++;
+            splitState.personNames.push(`Person ${splitState.peopleCount}`);
+            elements.splitPeople.value = splitState.peopleCount;
+            initSplitPeople();
+            if (elements.splitTotal?.value) autoCalculateSplit();
+        } else {
+            vibrate(20);
+        }
+    });
+
+    // --- Split Mode Chips ---
+    elements.splitModeChips?.addEventListener('click', (e) => {
+        const chip = e.target.closest('.split-chip');
+        if (!chip) return;
+        playClickSound();
+        document.querySelectorAll('.split-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const mode = chip.dataset.mode;
+        splitState.mode = mode;
+        elements.splitModeInput.value = mode;
+        elements.itemsSection?.classList.toggle('hidden', mode !== 'items');
+
+        // Reload person inputs for new mode
+        initSplitPeople();
+        if (elements.splitTotal?.value) autoCalculateSplit();
+    });
+
+    // --- Items Management ---
+    let itemIdCounter = 0;
+
+    function addItemRow(name = '', amount = '', assignee = '') {
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.dataset.itemId = itemIdCounter++;
+        const personOpts = splitState.personNames.map((n, i) =>
+            `<option value="${n}" ${assignee === n || (!assignee && i === 0) ? 'selected' : ''}>${n}</option>`
+        ).join('');
+        row.innerHTML = `
+            <input type="text" class="item-name" placeholder="Item name" value="${name}">
+            <div class="item-amount-wrap">
+                <span class="item-currency">₹</span>
+                <input type="text" inputmode="decimal" class="item-amount" placeholder="0.00" value="${amount}">
+            </div>
+            <select class="item-assignee">${personOpts}</select>
+            <button type="button" class="item-remove-btn"><i class="bi bi-dash-circle"></i></button>
+        `;
+        elements.itemsList.appendChild(row);
+
+        const nameInput = row.querySelector('.item-name');
+        const amtInput = row.querySelector('.item-amount');
+        const assignSelect = row.querySelector('.item-assignee');
+        const removeBtn = row.querySelector('.item-remove-btn');
+
+        nameInput.addEventListener('input', syncItems);
+        amtInput.addEventListener('input', () => { formatInputValue(amtInput); syncItems(); autoCalculateSplit(); });
+        assignSelect.addEventListener('change', () => { syncItems(); autoCalculateSplit(); });
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+            syncItems();
+            autoCalculateSplit();
+        });
+
+        // Enable/disable remove buttons
+        updateItemRemoveButtons();
+        syncItems();
+        autoCalculateSplit();
+    }
+
+    function syncItems() {
+        splitState.items = [];
+        document.querySelectorAll('.item-row').forEach(row => {
+            const name = row.querySelector('.item-name')?.value || '';
+            const amount = row.querySelector('.item-amount')?.value.replace(/,/g, '') || '';
+            const assignee = row.querySelector('.item-assignee')?.value || '';
+            splitState.items.push({ name, amount, assignee });
+        });
+        updateItemRemoveButtons();
+    }
+
+    function updateItemRemoveButtons() {
+        const rows = document.querySelectorAll('.item-row');
+        rows.forEach((row, i) => {
+            const btn = row.querySelector('.item-remove-btn');
+            if (btn) btn.disabled = rows.length <= 1;
+        });
+    }
+
+    elements.addItemBtn?.addEventListener('click', () => {
+        playClickSound();
+        addItemRow();
+    });
+
+    // Init with one item row
+    addItemRow('Item 1', '', splitState.personNames[0] || 'Person 1');
+
+    // --- Toggles ---
+    elements.roundToggle?.addEventListener('click', () => {
+        playClickSound();
+        splitState.roundOff = !splitState.roundOff;
+        elements.roundToggle.setAttribute('aria-checked', splitState.roundOff);
+        elements.roundToggle.classList.toggle('on', splitState.roundOff);
+        const pill = elements.roundToggle.querySelector('.toggle-pill');
+        if (pill) pill.classList.toggle('on', splitState.roundOff);
+        const knob = elements.roundToggle.querySelector('.toggle-knob');
+        if (knob) knob.classList.toggle('on', splitState.roundOff);
+        if (elements.splitTotal?.value) autoCalculateSplit();
+    });
+
+    elements.splitTaxToggle?.addEventListener('click', () => {
+        playClickSound();
+        splitState.proportionalTax = !splitState.proportionalTax;
+        elements.splitTaxToggle.setAttribute('aria-checked', splitState.proportionalTax);
+        elements.splitTaxToggle.classList.toggle('on', splitState.proportionalTax);
+        const pill = elements.splitTaxToggle.querySelector('.toggle-pill');
+        if (pill) pill.classList.toggle('on', splitState.proportionalTax);
+        const knob = elements.splitTaxToggle.querySelector('.toggle-knob');
+        if (knob) knob.classList.toggle('on', splitState.proportionalTax);
+        elements.splitTaxMode.value = splitState.proportionalTax ? 'proportional' : 'equal';
+        if (elements.splitTotal?.value) autoCalculateSplit();
+    });
+
+    // --- Auto-calculate on input ---
+    elements.splitTotal?.addEventListener('input', () => { autoCalculateSplit(); });
+    elements.splitTax?.addEventListener('input', () => { if (elements.splitTotal?.value) autoCalculateSplit(); });
+    elements.splitTip?.addEventListener('input', () => { if (elements.splitTotal?.value) autoCalculateSplit(); });
+    elements.splitDiscount?.addEventListener('input', () => { if (elements.splitTotal?.value) autoCalculateSplit(); });
+
+    // --- Form Submit ---
+    elements.splitForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        playClickSound();
+        vibrate(15);
+        elements.splitSkeleton?.classList.remove('hidden');
+        elements.splitResult.innerHTML = '';
+        elements.splitBreakdown?.classList.add('hidden');
+        elements.splitSettlement?.classList.add('hidden');
+        elements.splitActions?.classList.add('hidden');
+
+        setTimeout(() => {
+            calculateSplit();
+        }, 300);
+    });
+
+    // --- Clear ---
+    elements.clearSplit?.addEventListener('click', () => {
+        playClickSound();
+        elements.splitForm?.reset();
+        elements.splitTotal.value = '';
+        elements.splitTax.value = '';
+        elements.splitTip.value = '';
+        elements.splitDiscount.value = '';
+        elements.splitResult.innerHTML = '';
+        elements.splitBreakdown?.classList.add('hidden');
+        elements.splitSettlement?.classList.add('hidden');
+        elements.splitActions?.classList.add('hidden');
+        elements.splitSkeleton?.classList.add('hidden');
+
+        splitState.peopleCount = 2;
+        splitState.personNames = ['Person 1', 'Person 2'];
+        splitState.mode = 'equal';
+        splitState.roundOff = false;
+        splitState.proportionalTax = true;
+        splitState.items = [];
+        elements.splitPeople.value = '2';
+
+        // Reset mode chips
+        document.querySelectorAll('.split-chip').forEach(c => c.classList.remove('active'));
+        document.querySelector('.split-chip[data-mode="equal"]')?.classList.add('active');
+        elements.splitModeInput.value = 'equal';
+        elements.itemsSection?.classList.add('hidden');
+
+        // Reset toggles
+        elements.roundToggle.setAttribute('aria-checked', 'false');
+        elements.roundToggle.classList.remove('on');
+        const rPill = elements.roundToggle.querySelector('.toggle-pill');
+        if (rPill) rPill.classList.remove('on');
+        const rKnob = elements.roundToggle.querySelector('.toggle-knob');
+        if (rKnob) rKnob.classList.remove('on');
+
+        elements.splitTaxToggle.setAttribute('aria-checked', 'true');
+        elements.splitTaxToggle.classList.add('on');
+        const tPill = elements.splitTaxToggle.querySelector('.toggle-pill');
+        if (tPill) tPill.classList.add('on');
+        const tKnob = elements.splitTaxToggle.querySelector('.toggle-knob');
+        if (tKnob) tKnob.classList.add('on');
+        elements.splitTaxMode.value = 'proportional';
+
+        // Reset items
+        elements.itemsList.innerHTML = '';
+        addItemRow('Item 1', '', 'Person 1');
+
+        // Reset people
+        initSplitPeople();
+
+        ['split-total', 'split-tax', 'split-tip', 'split-discount'].forEach(id => {
+            const el = document.getElementById(id);
+            el?.closest('.input-wrapper')?.classList.remove('valid', 'invalid');
+            el?.closest('.input-with-prefix')?.classList.remove('filled');
+            const errorEl = document.getElementById(`${id}-error`);
+            if (errorEl) errorEl.textContent = '';
+        });
+    });
+
+    // --- Share & WhatsApp ---
+    elements.splitShare?.addEventListener('click', async () => {
+        playClickSound();
+        const text = appState.currentSplitResult?.text || '';
+        await shareContent('Bill Split', text);
+    });
+
+    elements.splitWhatsapp?.addEventListener('click', () => {
+        playClickSound();
+        const text = appState.currentSplitResult?.text || '';
+        shareToWhatsApp(text);
+    });
+
+    // Init people on load
+    initSplitPeople();
 
     // ============================================================
     // Settlement Auto-Calculation (Forward & Reverse)
@@ -2245,6 +2858,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (appState.interestChart) appState.interestChart.destroy();
         appState.interestChartData = null;
+        appState.currentResult = null;
+        localStorage.removeItem('calcResults');
     });
 
     // ============================================================
@@ -2401,7 +3016,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateCalculatorDisplay(isFinal) {
-        elements.expressionSpan.textContent = formatExpression(calcState.expression);
+        const exprText = formatExpression(calcState.expression);
+        elements.expressionSpan.textContent = exprText;
+
+        // Auto-scroll expression to end
+        if (elements.expressionSpan) {
+            elements.expressionSpan.scrollLeft = elements.expressionSpan.scrollWidth;
+        }
+
+        // Toggle left-fade on expression when overflowed
+        const exprWrap = elements.expressionSpan?.closest('.calc-expression-wrap');
+        if (exprWrap) {
+            const hasOverflow = elements.expressionSpan.scrollWidth > elements.expressionSpan.clientWidth;
+            exprWrap.classList.toggle('is-scrolled', hasOverflow);
+        }
 
         let value = '';
         try {
@@ -2414,10 +3042,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isFinal) {
             elements.calcDisplay?.classList.remove('typing-mode');
-            elements.resultSpan.textContent = value === '' ? 'Error' : formatNumber(value);
+            const displayValue = value === '' ? 'Error' : formatNumber(value);
+            elements.resultSpan.textContent = displayValue;
+            applyResultFontSize(displayValue);
         } else {
             elements.calcDisplay?.classList.add('typing-mode');
-            elements.resultSpan.textContent = value !== '' ? formatNumber(value) : '';
+            // Always show interim result unhighlighted below expression
+            const displayValue = value !== '' ? formatNumber(value) : '';
+            elements.resultSpan.textContent = displayValue;
+            applyResultFontSize(displayValue);
+        }
+
+        // Auto-scroll result to end
+        if (elements.resultSpan) {
+            elements.resultSpan.scrollLeft = elements.resultSpan.scrollWidth;
+        }
+
+    }
+
+    function applyResultFontSize(text) {
+        if (!elements.resultSpan) return;
+        if (!text || text === 'Error' || text === '') return;
+
+        // Count visible digits only
+        const digitCount = text.replace(/[^0-9]/g, '').length;
+
+        let size;
+        if (digitCount <= 10)          size = 44;
+        else if (digitCount <= 14)     size = 40;
+        else if (digitCount <= 18)     size = 36;
+        else if (digitCount <= 24)     size = 32;
+        else if (digitCount <= 30)     size = 28;
+        else if (digitCount <= 36)     size = 26;
+        else                           size = 22;
+
+        // Clamp between min and max
+        const maxWidth = elements.resultSpan.parentElement?.clientWidth || 300;
+        // Use intrinsic measurement — if text still wider, shrink further
+        elements.resultSpan.style.fontSize = size + 'px';
+
+        // If still overflowing after setting size, reduce by 2px until it fits
+        let currentSize = size;
+        while (elements.resultSpan.scrollWidth > maxWidth + 2 && currentSize > 12) {
+            currentSize -= 2;
+            elements.resultSpan.style.fontSize = currentSize + 'px';
         }
     }
 
@@ -2429,13 +3097,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (num === 'Error' || (!num && num !== 0)) return num || '';
         const parsed = parseFloat(num);
         if (isNaN(parsed)) return num;
-        return parsed.toLocaleString('en-IN', { maximumFractionDigits: 4 });
+        if (Number.isInteger(parsed)) {
+            return parsed.toLocaleString('en-IN');
+        }
+        return parsed.toLocaleString('en-IN', { maximumFractionDigits: 10 });
     }
 
     function formatExpression(expr) {
-        return expr.replace(/\d+(\.\d+)?/g, match => {
-            return parseFloat(match).toLocaleString('en-IN');
-        });
+        try {
+            return expr.replace(/\d+(\.\d*)?/g, match => {
+                if (!match) return match;
+                const hasTrailingDot = match.endsWith('.') && match.indexOf('.') === match.length - 1;
+                const cleanMatch = hasTrailingDot ? match.slice(0, -1) : match;
+                if (!cleanMatch) return match;
+                const parsed = parseFloat(cleanMatch);
+                if (isNaN(parsed)) return match;
+                const formatted = parsed.toLocaleString('en-IN');
+                return hasTrailingDot ? formatted + '.' : formatted;
+            });
+        } catch {
+            return expr;
+        }
     }
 
     function evaluateExpression(expr) {
@@ -2571,4 +3253,5 @@ document.addEventListener('DOMContentLoaded', () => {
             handleCalculatorButton(keyMap[e.key]);
         }
     });
+
 });

@@ -7,7 +7,7 @@
     
     <!-- PWA Meta -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <meta name="theme-color" content="#253D2C">
+    <meta name="theme-color" content="#4a3f35">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192x192.png') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     
@@ -32,6 +32,25 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
+
+    <!-- ============================================================
+         Splash Screen — PWA First Load
+         ============================================================ -->
+    <div id="splash-screen" class="splash-screen">
+        <div class="splash-inner">
+            <div class="splash-logo-wrap">
+                <img src="{{ url_for('static', filename='images/icon-512x512.png') }}" alt="Logo" class="splash-logo">
+                <div class="splash-logo-ring"></div>
+            </div>
+            <h1 class="splash-title">Calculator</h1>
+            <p class="splash-sub">Smart Financial Tools</p>
+            <div class="splash-loader">
+                <span class="splash-dot"></span>
+                <span class="splash-dot"></span>
+                <span class="splash-dot"></span>
+            </div>
+        </div>
+    </div>
     <!-- History Sidebar -->
     <aside id="history-sidebar" class="history-sidebar">
         <div class="history-header">
@@ -562,14 +581,194 @@
         </section>
 
         <!-- ============================================================
+             Bill Split Tab
+             ============================================================ -->
+        <section id="split" class="tab-content">
+            <form id="split-form" aria-label="Bill Split Form">
+                <!-- Bill Total -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-receipt"></i> Bill Total</div>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">₹</span>
+                        <input type="text" inputmode="decimal" id="split-total" name="split-total"
+                               placeholder="0.00" required>
+                    </div>
+                    <span id="split-total-error" class="error-text"></span>
+                </div>
+
+                <!-- Number of People -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-people-fill"></i> Number of People</div>
+                    <div class="people-count-row">
+                        <button type="button" id="people-minus" class="people-adjust-btn">−</button>
+                        <input type="text" inputmode="numeric" id="split-people" name="split-people"
+                               value="2" readonly>
+                        <button type="button" id="people-plus" class="people-adjust-btn">+</button>
+                    </div>
+                    <span id="split-people-error" class="error-text"></span>
+                </div>
+
+                <!-- Person Names & Details Container -->
+                <div id="people-details" class="people-details"></div>
+
+                <!-- Split Mode -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-diagram-3-fill"></i> Split Mode</div>
+                    <div class="split-mode-chips" id="split-mode-chips">
+                        <div class="split-chip active" data-mode="equal">Equal</div>
+                        <div class="split-chip" data-mode="custom">Custom</div>
+                        <div class="split-chip" data-mode="percent">% Share</div>
+                        <div class="split-chip" data-mode="ratio">Ratio</div>
+                        <div class="split-chip" data-mode="items">Items</div>
+                    </div>
+                    <input type="hidden" id="split-mode" value="equal">
+                </div>
+
+                <!-- Items Section (for Item-wise mode) -->
+                <div id="items-section" class="hidden">
+                    <div class="input-group">
+                        <div class="input-label"><i class="bi bi-basket"></i> Add Items</div>
+                        <div id="items-list" class="items-list"></div>
+                        <button type="button" id="add-item-btn" class="add-item-btn"><i class="bi bi-plus-circle"></i> Add Item</button>
+                    </div>
+                </div>
+
+                <!-- Tax & Tip -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-percent"></i> Tax &amp; Tip</div>
+                    <div class="tax-tip-row">
+                        <div class="tax-tip-field">
+                            <div class="input-with-prefix no-clear">
+                                <span class="input-prefix">%</span>
+                                <input type="text" inputmode="decimal" id="split-tax" name="split-tax"
+                                       placeholder="Tax %" class="no-clear">
+                            </div>
+                            <span class="tax-tip-label">Tax</span>
+                        </div>
+                        <div class="tax-tip-field">
+                            <div class="input-with-prefix no-clear">
+                                <span class="input-prefix">%</span>
+                                <input type="text" inputmode="decimal" id="split-tip" name="split-tip"
+                                       placeholder="Tip %" class="no-clear">
+                            </div>
+                            <span class="tax-tip-label">Tip</span>
+                        </div>
+                        <div class="tax-tip-field">
+                            <div class="input-with-prefix no-clear">
+                                <span class="input-prefix">₹</span>
+                                <input type="text" inputmode="decimal" id="split-discount" name="split-discount"
+                                       placeholder="Discount" class="no-clear">
+                            </div>
+                            <span class="tax-tip-label">Discount</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Round Off -->
+                <div class="input-group">
+                    <div class="round-toggle-row" id="round-toggle" role="switch" aria-checked="false">
+                        <div class="rtl">
+                            <div class="rt-icon"><i class="bi bi-arrow-up-short"></i></div>
+                            <div>
+                                <div class="rt-text">Round Off Shares</div>
+                                <div class="rt-sub">Round each share to nearest integer</div>
+                            </div>
+                        </div>
+                        <div class="toggle-pill"><div class="toggle-knob"></div></div>
+                    </div>
+                </div>
+
+                <!-- Split Tax Mode -->
+                <div class="input-group">
+                    <div class="split-tax-toggle-row" id="split-tax-toggle" role="switch" aria-checked="true">
+                        <div class="rtl">
+                            <div class="rt-icon"><i class="bi bi-pie-chart-fill"></i></div>
+                            <div>
+                                <div class="rt-text">Split Tax &amp; Tip Proportionally</div>
+                                <div class="rt-sub">Based on each person's subtotal</div>
+                            </div>
+                        </div>
+                        <div class="toggle-pill on"><div class="toggle-knob"></div></div>
+                    </div>
+                    <input type="hidden" id="split-tax-mode" value="proportional">
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="button-group">
+                    <button type="submit"><i class="bi bi-calculator-fill"></i> Split Bill</button>
+                    <button type="button" id="clear-split"><i class="bi bi-x-circle"></i> Clear</button>
+                </div>
+            </form>
+
+            <!-- Loading Skeleton -->
+            <div id="split-skeleton" class="result-skeleton hidden">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+            </div>
+
+            <!-- Split Result -->
+            <div id="split-result" class="result-box" aria-live="polite"></div>
+
+            <!-- Detailed Breakdown -->
+            <div id="split-breakdown" class="split-breakdown hidden">
+                <h3>Split Breakdown</h3>
+                <div id="split-people-result" class="split-people-result"></div>
+                <div class="split-summary-strip">
+                    <div class="sss-item">
+                        <span class="sss-label">Subtotal</span>
+                        <span class="sss-value" id="s-breakdown-subtotal">₹0</span>
+                    </div>
+                    <div class="sss-item">
+                        <span class="sss-label">Tax</span>
+                        <span class="sss-value sss-red" id="s-breakdown-tax">₹0</span>
+                    </div>
+                    <div class="sss-item">
+                        <span class="sss-label">Tip</span>
+                        <span class="sss-value sss-green" id="s-breakdown-tip">₹0</span>
+                    </div>
+                    <div class="sss-item">
+                        <span class="sss-label">Discount</span>
+                        <span class="sss-value sss-red" id="s-breakdown-discount">₹0</span>
+                    </div>
+                    <div class="sss-item">
+                        <span class="sss-label">Grand Total</span>
+                        <span class="sss-value sss-bold" id="s-breakdown-total">₹0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settlement Suggestions -->
+            <div id="split-settlement" class="settlement-summary hidden">
+                <div class="settlement-header">
+                    <i class="bi bi-arrow-left-right"></i> Settlement Suggestions
+                </div>
+                <div id="split-settlement-body" class="split-settlement-body"></div>
+            </div>
+
+            <!-- Share Actions -->
+            <div id="split-actions" class="result-actions hidden">
+                <button type="button" id="split-share" class="action-btn">
+                    <i class="bi bi-share-fill"></i> Share
+                </button>
+                <button type="button" id="split-whatsapp" class="action-btn whatsapp-btn">
+                    <i class="bi bi-whatsapp"></i> WhatsApp
+                </button>
+            </div>
+        </section>
+
+        <!-- ============================================================
              Normal Calculator Tab
              ============================================================ -->
         <section id="normal" class="tab-content">
             <div class="calculator">
                 <!-- Display -->
                 <div id="calc-display" class="calc-display">
-                    <span id="expression"></span>
-                    <span id="result" class="highlight">0</span>
+                    <div class="calc-expression-wrap">
+                        <span id="expression"></span>
+                    </div>
+                    <div class="calc-result-wrap">
+                        <span id="result">0</span>
+                    </div>
                 </div>
 
                 <!-- Keypad -->
@@ -608,6 +807,7 @@
         <button class="tab-item active" data-tab="interest"><i class="bi bi-percent"></i><span>Interest</span></button>
         <button class="tab-item" data-tab="emi"><i class="bi bi-bank"></i><span>EMI</span></button>
         <button class="tab-item" data-tab="settlement"><i class="bi bi-wallet2"></i><span>Settle</span></button>
+        <button class="tab-item" data-tab="split"><i class="bi bi-people-fill"></i><span>Split</span></button>
         <button class="tab-item" data-tab="compare"><i class="bi bi-bar-chart-line"></i><span>Compare</span></button>
         <button class="tab-item" data-tab="normal"><i class="bi bi-grid-3x3-gap-fill"></i><span>Calc</span></button>
     </nav>

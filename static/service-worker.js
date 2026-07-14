@@ -14,6 +14,8 @@ const ASSETS_TO_CACHE = [
     '/static/css/styles.css',
     '/static/js/scripts.js',
     '/static/manifest.json',
+    '/static/images/icon-192x192.png',
+    '/static/images/icon-512x512.png',
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
