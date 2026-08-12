@@ -168,11 +168,19 @@
                     <div class="date-input-row">
                         <div class="date-field">
                             <div class="date-field-label"><i class="bi bi-calendar-event"></i> Start Date</div>
-                            <input type="date" id="start-date" name="start_date">
+                            <button type="button" class="date-picker-btn" id="start-date-btn">
+                                <span class="dpb-icon"><i class="bi bi-calendar3"></i></span>
+                                <span class="dpb-value" id="start-date-display">Select date</span>
+                            </button>
+                            <input type="hidden" id="start-date" name="start_date">
                         </div>
                         <div class="date-field">
                             <div class="date-field-label"><i class="bi bi-calendar-check"></i> End Date</div>
-                            <input type="date" id="end-date" name="end_date">
+                            <button type="button" class="date-picker-btn" id="end-date-btn">
+                                <span class="dpb-icon"><i class="bi bi-calendar3"></i></span>
+                                <span class="dpb-value" id="end-date-display">Select date</span>
+                            </button>
+                            <input type="hidden" id="end-date" name="end_date">
                         </div>
                     </div>
                     <!-- Auto-calculated period display -->
@@ -820,6 +828,27 @@
             <div class="modal-actions">
                 <button id="modal-cancel" class="action-btn">Cancel</button>
                 <button id="modal-confirm" class="action-btn" style="background:var(--forest);color:var(--mint);border-color:var(--sage);">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Premium Date Picker Modal -->
+    <div id="date-picker-overlay" class="dp-overlay hidden">
+        <div class="dp-modal">
+            <div class="dp-header">
+                <div class="dp-title" id="dp-title">Select Start Date</div>
+                <button type="button" class="dp-close" id="dp-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dp-nav">
+                <button type="button" class="dp-nav-arrow" id="dp-prev" aria-label="Previous"><i class="bi bi-chevron-left"></i></button>
+                <button type="button" class="dp-nav-center" id="dp-label">August 2026</button>
+                <button type="button" class="dp-nav-arrow" id="dp-next" aria-label="Next"><i class="bi bi-chevron-right"></i></button>
+            </div>
+            <div class="dp-body" id="dp-body"></div>
+            <div class="dp-footer">
+                <button type="button" class="dp-today" id="dp-today">Today</button>
+                <button type="button" class="dp-cancel" id="dp-cancel">Cancel</button>
+                <button type="button" class="dp-done" id="dp-done">Done</button>
             </div>
         </div>
     </div>

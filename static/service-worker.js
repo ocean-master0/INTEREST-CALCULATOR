@@ -7,7 +7,7 @@
 // Configuration
 // ============================================================
 
-const CACHE_NAME = 'interest-calc-v4';
+const CACHE_NAME = 'interest-calc-v5';
 
 const ASSETS_TO_CACHE = [
     '/',
@@ -20,6 +20,16 @@ const ASSETS_TO_CACHE = [
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
+
+// ============================================================
+// Message Event - Skip Waiting (instant update)
+// ============================================================
+
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
 
 // ============================================================
 // Install Event - Cache Assets
@@ -53,6 +63,20 @@ self.addEventListener('fetch', (event) => {
                         headers: { 'Content-Type': 'application/json' }
                     });
                 })
+        );
+        return;
+    }
+
+    // Manifest — network first so theme/icon updates propagate
+    if (url.pathname.includes('manifest.json')) {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
         );
         return;
     }

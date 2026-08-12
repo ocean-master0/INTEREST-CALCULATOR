@@ -20,8 +20,24 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
-            .then(() => {})
+            .then((registration) => {
+                // Auto-refresh when a new service worker takes control
+                // (ensures users get updated assets like new manifest/icons)
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+            })
             .catch(() => {});
+
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.location.reload();
+        });
     }
 
     // ============================================================
@@ -563,6 +579,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const meta = document.querySelector('meta[name="csrf-token"]');
         return meta ? meta.getAttribute('content') : '';
     }
+    
+    // Refresh CSRF token from server (used when validation fails or
+    // when the page was served from cache with a stale token)
+    async function refreshCSRFToken() {
+        try {
+            const res = await fetch('/api/csrf-token', { cache: 'no-store' });
+            if (!res.ok) return false;
+            const data = await res.json();
+            if (data.csrf_token) {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.setAttribute('content', data.csrf_token);
+                return true;
+            }
+        } catch (e) {}
+        return false;
+    }
+    
+    // Perform a POST with automatic CSRF recovery:
+    // if the server rejects the token (419), fetch a fresh token and retry once
+    async function fetchWithCSRF(url, options) {
+        let response = await fetch(url, options);
+        if (response.status === 419) {
+            const ok = await refreshCSRFToken();
+            if (ok) {
+                options.headers['X-CSRFToken'] = getCSRFToken();
+                response = await fetch(url, options);
+            }
+        }
+        return response;
+    }
+    
+    // On load: silently refresh token so stale cached pages self-heal
+    refreshCSRFToken();
 
     // ============================================================
     // Sound Effects
@@ -611,11 +660,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const today = new Date();
             if (elements.startDateInput && !elements.startDateInput.value) {
                 elements.startDateInput.value = today.toISOString().split('T')[0];
+                const disp = document.getElementById('start-date-display');
+                if (disp) { disp.textContent = formatDisplay(today); disp.parentElement.classList.add('filled'); }
             }
             if (elements.endDateInput && !elements.endDateInput.value) {
                 const nextYear = new Date(today);
                 nextYear.setFullYear(nextYear.getFullYear() + 1);
                 elements.endDateInput.value = nextYear.toISOString().split('T')[0];
+                const disp = document.getElementById('end-date-display');
+                if (disp) { disp.textContent = formatDisplay(nextYear); disp.parentElement.classList.add('filled'); }
             }
             calculateDateDiff();
         } else {
@@ -665,6 +718,277 @@ document.addEventListener('DOMContentLoaded', () => {
     
     elements.startDateInput?.addEventListener('change', calculateDateDiff);
     elements.endDateInput?.addEventListener('change', calculateDateDiff);
+
+    // ============================================================
+    // Premium Date Picker — Year → Month → Day drill-down
+    // ============================================================
+
+    const dp = {
+        target: null,          // 'start' | 'end'
+        view: 'day',           // 'day' | 'month' | 'year'
+        cursorYear: 2026,
+        cursorMonth: 0,        // 0-11
+        cursorDay: 1,
+        tempDate: null,        // Date while picking (applied on Done)
+        startDate: null,       // Date | null
+        endDate: null,         // Date | null
+    };
+
+    const dpOverlay = document.getElementById('date-picker-overlay');
+    const dpTitle = document.getElementById('dp-title');
+    const dpLabel = document.getElementById('dp-label');
+    const dpBody = document.getElementById('dp-body');
+    const dpPrev = document.getElementById('dp-prev');
+    const dpNext = document.getElementById('dp-next');
+    const dpToday = document.getElementById('dp-today');
+    const dpCancel = document.getElementById('dp-cancel');
+    const dpDone = document.getElementById('dp-done');
+    const dpClose = document.getElementById('dp-close');
+
+    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    function parseISO(val) {
+        if (!val) return null;
+        const [y, m, d] = val.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+
+    function toISO(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function formatDisplay(d) {
+        if (!d) return 'Select date';
+        const today = new Date();
+        const sameYear = d.getFullYear() === today.getFullYear();
+        const base = `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+        return sameYear ? base : `${base} ${d.getFullYear()}`;
+    }
+
+    function openDatePicker(target) {
+        dp.target = target;
+        const existing = target === 'start' ? parseISO(elements.startDateInput.value) : parseISO(elements.endDateInput.value);
+        const today = new Date();
+        dp.cursorYear = existing ? existing.getFullYear() : today.getFullYear();
+        dp.cursorMonth = existing ? existing.getMonth() : today.getMonth();
+        dp.cursorDay = existing ? existing.getDate() : 1;
+        dp.tempDate = existing ? new Date(existing) : null;
+        dp.view = 'day';
+
+        // Load current range
+        dp.startDate = parseISO(elements.startDateInput.value);
+        dp.endDate = parseISO(elements.endDateInput.value);
+
+        dpTitle.textContent = target === 'start' ? 'Select Start Date' : 'Select End Date';
+        dpOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        renderDatePicker();
+    }
+
+    function closeDatePicker() {
+        dpOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    function renderDatePicker() {
+        dpLabel.textContent = dp.view === 'day'
+            ? `${MONTHS_FULL[dp.cursorMonth]} ${dp.cursorYear}`
+            : dp.view === 'month'
+                ? `${dp.cursorYear}`
+                : `${dp.cursorYear - 6} – ${dp.cursorYear + 6}`;
+
+        dpPrev.style.visibility = 'visible';
+        dpNext.style.visibility = 'visible';
+
+        if (dp.view === 'day') renderDays();
+        else if (dp.view === 'month') renderMonths();
+        else renderYears();
+    }
+
+    function renderDays() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const first = new Date(dp.cursorYear, dp.cursorMonth, 1);
+        const daysInMonth = new Date(dp.cursorYear, dp.cursorMonth + 1, 0).getDate();
+        const startWeekday = first.getDay();
+
+        const weekdays = ['Su','Mo','Tu','We','Th','Fr','Sa']
+            .map(w => `<span>${w}</span>`).join('');
+        const wkHeader = `<div class="dp-weekdays">${weekdays}</div>`;
+
+        let cells = '';
+        for (let i = 0; i < startWeekday; i++) {
+            cells += `<button type="button" class="dp-day empty"></button>`;
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(dp.cursorYear, dp.cursorMonth, d);
+            let cls = 'dp-day';
+            if (toISO(date) === toISO(today)) cls += ' today';
+            if (dp.tempDate && toISO(date) === toISO(dp.tempDate)) cls += ' selected';
+            if (dp.startDate && dp.endDate && dp.startDate < date && date < dp.endDate) cls += ' in-range';
+            if (dp.startDate && toISO(date) === toISO(dp.startDate)) cls += ' range-start';
+            if (dp.endDate && toISO(date) === toISO(dp.endDate)) cls += ' range-end';
+            cells += `<button type="button" class="${cls}" data-day="${d}">${d}</button>`;
+        }
+
+        dpBody.innerHTML = wkHeader + `<div class="dp-days">${cells}</div>`;
+        dpBody.querySelectorAll('.dp-day[data-day]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                dp.cursorDay = parseInt(btn.dataset.day, 10);
+                dp.tempDate = new Date(dp.cursorYear, dp.cursorMonth, dp.cursorDay);
+                renderDays();
+            });
+        });
+    }
+
+    function renderMonths() {
+        let html = '<div class="dp-grid">';
+        for (let m = 0; m < 12; m++) {
+            const active = dp.tempDate && dp.tempDate.getFullYear() === dp.cursorYear && dp.tempDate.getMonth() === m;
+            html += `<button type="button" class="dp-grid-item${active ? ' active' : ''}" data-month="${m}">${MONTHS_FULL[m].slice(0, 3)}</button>`;
+        }
+        html += '</div>';
+        dpBody.innerHTML = html;
+        dpBody.querySelectorAll('.dp-grid-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                dp.cursorMonth = parseInt(btn.dataset.month, 10);
+                dp.cursorDay = Math.min(dp.cursorDay, new Date(dp.cursorYear, dp.cursorMonth + 1, 0).getDate());
+                if (dp.tempDate) {
+                    dp.tempDate = new Date(dp.cursorYear, dp.cursorMonth, dp.cursorDay);
+                }
+                dp.view = 'day';
+                renderDatePicker();
+            });
+        });
+    }
+
+    function renderYears() {
+        const center = dp.cursorYear;
+        const startYear = center - 6;
+        let html = '<div class="dp-grid">';
+        for (let i = 0; i < 15; i++) {
+            const y = startYear + i;
+            const active = dp.tempDate && dp.tempDate.getFullYear() === y;
+            const outside = y < 1990 || y > new Date().getFullYear() + 50;
+            html += `<button type="button" class="dp-grid-item${active ? ' active' : ''}${outside ? ' outside' : ''}" data-year="${y}">${y}</button>`;
+        }
+        html += '</div>';
+        dpBody.innerHTML = html;
+        dpBody.querySelectorAll('.dp-grid-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                dp.cursorYear = parseInt(btn.dataset.year, 10);
+                dp.view = 'month';
+                renderDatePicker();
+            });
+        });
+    }
+
+    // Label click → drill down: day → year → month → day
+    dpLabel?.addEventListener('click', () => {
+        playClickSound();
+        if (dp.view === 'day') {
+            dp.view = 'year';
+        } else if (dp.view === 'month') {
+            dp.view = 'year';
+        } else {
+            dp.view = 'month';
+        }
+        renderDatePicker();
+    });
+
+    dpPrev?.addEventListener('click', () => {
+        playClickSound();
+        if (dp.view === 'day') {
+            dp.cursorMonth--;
+            if (dp.cursorMonth < 0) { dp.cursorMonth = 11; dp.cursorYear--; }
+        } else if (dp.view === 'month') {
+            dp.cursorYear--;
+        } else {
+            dp.cursorYear -= 15;
+        }
+        renderDatePicker();
+    });
+
+    dpNext?.addEventListener('click', () => {
+        playClickSound();
+        if (dp.view === 'day') {
+            dp.cursorMonth++;
+            if (dp.cursorMonth > 11) { dp.cursorMonth = 0; dp.cursorYear++; }
+        } else if (dp.view === 'month') {
+            dp.cursorYear++;
+        } else {
+            dp.cursorYear += 15;
+        }
+        renderDatePicker();
+    });
+
+    dpToday?.addEventListener('click', () => {
+        playClickSound();
+        const today = new Date();
+        dp.tempDate = new Date(today);
+        dp.cursorYear = today.getFullYear();
+        dp.cursorMonth = today.getMonth();
+        dp.cursorDay = today.getDate();
+        dp.view = 'day';
+        renderDatePicker();
+        applyTempDate();
+    });
+
+    dpCancel?.addEventListener('click', () => {
+        playClickSound();
+        closeDatePicker();
+    });
+
+    dpClose?.addEventListener('click', () => {
+        playClickSound();
+        closeDatePicker();
+    });
+
+    function applyTempDate() {
+        if (!dp.tempDate) return;
+        if (dp.target === 'start') {
+            elements.startDateInput.value = toISO(dp.tempDate);
+            const disp = document.getElementById('start-date-display');
+            if (disp) {
+                disp.textContent = formatDisplay(dp.tempDate);
+                disp.parentElement.classList.add('filled');
+            }
+        } else {
+            elements.endDateInput.value = toISO(dp.tempDate);
+            const disp = document.getElementById('end-date-display');
+            if (disp) {
+                disp.textContent = formatDisplay(dp.tempDate);
+                disp.parentElement.classList.add('filled');
+            }
+        }
+        calculateDateDiff();
+    }
+
+    dpDone?.addEventListener('click', () => {
+        playClickSound();
+        applyTempDate();
+        closeDatePicker();
+    });
+
+    dpOverlay?.addEventListener('click', (e) => {
+        if (e.target === dpOverlay) closeDatePicker();
+    });
+
+    document.getElementById('start-date-btn')?.addEventListener('click', () => {
+        playClickSound();
+        vibrate(8);
+        openDatePicker('start');
+    });
+
+    document.getElementById('end-date-btn')?.addEventListener('click', () => {
+        playClickSound();
+        vibrate(8);
+        openDatePicker('end');
+    });
 
     // ============================================================
     // Frequency Chips
@@ -937,7 +1261,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const formData = new FormData(elements.interestForm);
-            const response = await fetch('/calculate_interest', {
+            const response = await fetchWithCSRF('/calculate_interest', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCSRFToken() },
                 body: formData
@@ -2842,6 +3166,12 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.manualTimeGroup?.classList.remove('hidden');
         elements.dateRangeGroup?.classList.remove('visible');
         elements.calculatedPeriod?.classList.add('hidden');
+        elements.startDateInput.value = '';
+        elements.endDateInput.value = '';
+        const sdDisp = document.getElementById('start-date-display');
+        if (sdDisp) { sdDisp.textContent = 'Select date'; sdDisp.parentElement.classList.remove('filled'); }
+        const edDisp = document.getElementById('end-date-display');
+        if (edDisp) { edDisp.textContent = 'Select date'; edDisp.parentElement.classList.remove('filled'); }
         
         // Reset freq chips
         document.querySelectorAll('.freq-chip').forEach(c => c.classList.remove('active'));

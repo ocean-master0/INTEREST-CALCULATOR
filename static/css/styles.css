@@ -531,6 +531,33 @@ h1 {
     color: rgba(141,110,76,0.38);
 }
 
+/* ============================================================
+   Autofill Fix — Prevent white/blue background on browser
+   auto-suggestions; keeps original glass background & theme
+   ============================================================ */
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--text-primary);
+    caret-color: var(--text-primary);
+    /* Delay the browser's autofill background change indefinitely —
+       our glass background stays visible instead of turning white */
+    transition: background-color 999999s ease-out 0s;
+    -webkit-box-shadow: 0 0 0 1000px rgba(245,241,230,0.9) inset;
+    box-shadow: 0 0 0 1000px rgba(245,241,230,0.9) inset;
+    background-color: transparent !important;
+    background-image: none !important;
+    border-color: var(--border) !important;
+}
+
+input:-webkit-autofill::first-line {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 15px;
+}
+
 .input-wrapper input:focus,
 .input-group > select:focus {
     background: var(--glass-bg-hover);
@@ -850,6 +877,57 @@ h1 {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 11px 12px;
+}
+
+.date-picker-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(166,124,82,0.18);
+    border-radius: 12px;
+    padding: 9px 10px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--mono);
+}
+
+.date-picker-btn:hover {
+    background: rgba(166,124,82,0.06);
+    border-color: var(--glass-border-focus);
+}
+
+.date-picker-btn:active {
+    transform: scale(0.98);
+}
+
+.dpb-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(166,124,82,0.14);
+    color: var(--sage);
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.dpb-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+}
+
+.date-picker-btn.filled .dpb-value {
+    color: var(--text-primary);
 }
 
 .date-field-label {
@@ -3844,6 +3922,352 @@ select:focus-visible {
 @keyframes splash-dot-bounce {
     0%, 80%, 100% { transform: scale(0.6); background: rgba(245,241,230,0.15); }
     40%           { transform: scale(1); background: rgba(245,241,230,0.5); }
+}
+
+/* ============================================================
+   Premium Date Picker — Liquid Glass Modal
+   Year → Month → Day drill-down (Material-inspired)
+   ============================================================ */
+
+.dp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(58,50,44,0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: dp-fade-in 0.25s ease;
+}
+
+.dp-overlay.hidden {
+    display: none;
+}
+
+.dp-modal {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    background:
+        radial-gradient(ellipse 100% 60% at 50% 10%, rgba(255,255,255,0.08) 0%, transparent 60%),
+        rgba(245,241,230,0.92);
+    backdrop-filter: blur(30px) saturate(180%) brightness(110%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(110%);
+    border-radius: 28px 28px 0 0;
+    box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.6),
+        0 -8px 40px rgba(0,0,0,0.15);
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    animation: dp-slide-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes dp-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes dp-slide-up {
+    from { transform: translateY(60px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+/* --- Header --- */
+.dp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.dp-title {
+    font-family: var(--font);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+}
+
+.dp-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(166,124,82,0.12);
+    color: var(--text-secondary);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dp-close:hover {
+    background: rgba(166,124,82,0.2);
+}
+
+/* --- Navigation (month/year label) --- */
+.dp-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.dp-nav-arrow {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(166,124,82,0.12);
+    color: var(--text-secondary);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.dp-nav-arrow:hover {
+    background: rgba(166,124,82,0.22);
+}
+
+.dp-nav-arrow:active {
+    transform: scale(0.92);
+}
+
+.dp-nav-center {
+    flex: 1;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 4px;
+    border-radius: 10px;
+    transition: all var(--transition-fast);
+    letter-spacing: 0.3px;
+}
+
+.dp-nav-center:hover {
+    background: rgba(166,124,82,0.1);
+}
+
+/* --- Body: weekday header + day grid --- */
+.dp-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 4px;
+}
+
+.dp-weekdays span {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    padding: 6px 0;
+}
+
+.dp-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.dp-day {
+    aspect-ratio: 1;
+    border: none;
+    background: none;
+    border-radius: 50%;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    position: relative;
+}
+
+.dp-day:hover {
+    background: rgba(166,124,82,0.12);
+}
+
+.dp-day.empty {
+    cursor: default;
+    background: none;
+}
+
+.dp-day.empty:hover {
+    background: none;
+}
+
+.dp-day.today {
+    color: var(--sage);
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(166,124,82,0.45);
+}
+
+.dp-day.selected {
+    background: var(--accent-gradient);
+    color: #fffcf5;
+    font-weight: 600;
+    box-shadow: 0 3px 12px rgba(166,124,82,0.35);
+}
+
+.dp-day.in-range {
+    background: rgba(166,124,82,0.18);
+    border-radius: 6px;
+}
+
+.dp-day.range-start {
+    background: var(--accent-gradient);
+    color: #fffcf5;
+    font-weight: 600;
+    border-radius: 50%;
+    box-shadow: 0 3px 12px rgba(166,124,82,0.35);
+}
+
+.dp-day.range-end {
+    background: var(--accent-gradient);
+    color: #fffcf5;
+    font-weight: 600;
+    border-radius: 50%;
+    box-shadow: 0 3px 12px rgba(166,124,82,0.35);
+}
+
+/* --- Month / Year grids --- */
+.dp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.dp-grid-item {
+    padding: 16px 8px;
+    border: none;
+    background: rgba(166,124,82,0.08);
+    border-radius: 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dp-grid-item:hover {
+    background: rgba(166,124,82,0.16);
+}
+
+.dp-grid-item:active {
+    transform: scale(0.95);
+}
+
+.dp-grid-item.active {
+    background: var(--accent-gradient);
+    color: #fffcf5;
+    font-weight: 600;
+    box-shadow: 0 3px 12px rgba(166,124,82,0.3);
+}
+
+.dp-grid-item.outside {
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+/* --- Footer --- */
+.dp-footer {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.dp-today,
+.dp-cancel,
+.dp-done {
+    padding: 12px 10px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid var(--border);
+}
+
+.dp-today {
+    background: rgba(166,124,82,0.1);
+    color: var(--sage);
+    flex: 1;
+}
+
+.dp-today:hover {
+    background: rgba(166,124,82,0.18);
+}
+
+.dp-cancel {
+    background: rgba(219,208,186,0.15);
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.dp-cancel:hover {
+    background: rgba(219,208,186,0.3);
+}
+
+.dp-done {
+    background: var(--accent-gradient);
+    color: #fffcf5;
+    border: none;
+    flex: 1;
+    box-shadow: 0 4px 16px rgba(166,124,82,0.3);
+}
+
+.dp-done:hover {
+    box-shadow: 0 6px 20px rgba(166,124,82,0.4);
+}
+
+.dp-done:active {
+    transform: scale(0.96);
+}
+
+.dp-done:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* --- Responsive --- */
+@media (max-width: 400px) {
+    .dp-modal {
+        padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+        border-radius: 22px 22px 0 0;
+    }
+    .dp-day {
+        font-size: 12px;
+    }
+    .dp-grid-item {
+        padding: 13px 6px;
+        font-size: 12px;
+    }
 }
 
 

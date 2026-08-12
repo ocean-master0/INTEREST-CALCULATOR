@@ -59,10 +59,22 @@ app = Flask(__name__)
 # ── Secret Key ─────────────────────────────────────────────
 _secret_key = os.environ.get("SECRET_KEY")
 if not _secret_key:
-    import secrets
-    _secret_key = secrets.token_hex(32)
+    # Persist a generated key to a file so sessions/tokens survive restarts
+    _key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".secret_key")
+    try:
+        if os.path.exists(_key_file):
+            with open(_key_file, "r") as f:
+                _secret_key = f.read().strip()
+        if not _secret_key:
+            import secrets
+            _secret_key = secrets.token_hex(32)
+            with open(_key_file, "w") as f:
+                f.write(_secret_key)
+    except OSError:
+        import secrets
+        _secret_key = secrets.token_hex(32)
     if not os.environ.get("RENDER"):
-        print("WARNING: Using a random SECRET_KEY. Set SECRET_KEY env var for persistence.")
+        print("WARNING: Using a persisted SECRET_KEY (stored in .secret_key). Set SECRET_KEY env var for production.")
 app.config["SECRET_KEY"] = _secret_key
 
 # ── Secure Cookie Configuration ────────────────────────────
@@ -119,8 +131,18 @@ if _is_production and Talisman is not None:
 
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
-    """Return a safe error message when CSRF validation fails."""
-    return jsonify({"error": "CSRF validation failed. Please refresh the page and try again."}), 400
+    """Return a safe, retriable error message when CSRF validation fails."""
+    return jsonify({
+        "error": "CSRF validation failed",
+        "csrf_failed": True
+    }), 419
+
+
+@app.route('/api/csrf-token')
+def csrf_token_endpoint():
+    """Return a fresh CSRF token (session must exist). Used to recover from expired tokens."""
+    from flask_wtf.csrf import generate_csrf
+    return jsonify({"csrf_token": generate_csrf()})
 
 
 # ============================================================
@@ -204,7 +226,11 @@ def favicon():
 @app.route('/sw.js')
 def service_worker():
     """Serve the service worker from root path."""
-    return app.send_static_file('service-worker.js')
+    response = app.send_static_file('service-worker.js')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route('/.well-known/appspecific/com.chrome.devtools.json')
