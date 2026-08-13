@@ -2944,6 +2944,140 @@ select:focus-visible {
     }
 }
 
+/* ============================================================
+   Discount Calculator — Preset Chips
+   ============================================================ */
+
+.discount-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+}
+
+.discount-chip {
+    background: var(--glass-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 2px;
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    font-family: var(--font);
+    color: var(--sage);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.discount-chip:hover {
+    background: rgba(166,124,82,0.2);
+}
+
+.discount-chip.active {
+    background: var(--forest);
+    color: var(--mint);
+    border-color: var(--sage);
+    box-shadow: 0 2px 10px rgba(166,124,82,0.4);
+}
+
+/* ============================================================
+   Discount Calculator — Result Card
+   ============================================================ */
+
+.discount-result {
+    margin-top: 12px;
+    padding: 18px;
+    background: rgba(166,124,82,0.18);
+    border: 1px solid rgba(141,110,76,0.32);
+    border-radius: var(--radius-lg);
+    text-align: center;
+    animation: fadeIn 0.4s ease;
+}
+
+.discount-result.hidden {
+    display: none;
+}
+
+.discount-save-banner {
+    background: rgba(166,124,82,0.22);
+    border: 1px solid rgba(141,110,76,0.35);
+    border-radius: var(--radius-md);
+    padding: 14px 10px;
+    margin-bottom: 14px;
+}
+
+.discount-save-pct {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: var(--forest);
+    letter-spacing: 0.5px;
+}
+
+.discount-save-sub {
+    font-size: 10px;
+    color: var(--sage);
+    margin-top: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.discount-save-amount {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: #2e7d32;
+    margin-top: 6px;
+}
+
+.discount-price-rows {
+    text-align: left;
+    font-family: var(--mono);
+}
+
+.discount-price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 4px;
+    font-size: 13.5px;
+}
+
+.dpr-label {
+    color: var(--sage);
+    font-weight: 500;
+}
+
+.dpr-value {
+    color: var(--mint);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.discount-price-row.dpr-discount .dpr-value {
+    color: var(--danger-color);
+}
+
+.discount-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(141,110,76,0.4), transparent);
+    margin: 6px 0;
+}
+
+.discount-price-row.dpr-final .dpr-label {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 15px;
+}
+
+.dpr-final-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--forest);
+}
+
 /* Items Section */
 .items-list {
     display: flex;

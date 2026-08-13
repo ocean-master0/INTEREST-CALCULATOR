@@ -765,6 +765,93 @@
         </section>
 
         <!-- ============================================================
+             Discount Calculator Tab
+             ============================================================ -->
+        <section id="discount" class="tab-content">
+            <form id="discount-form" aria-label="Discount Calculator Form">
+                <!-- Original Price -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-tag-fill"></i> MRP / Original Price</div>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">₹</span>
+                        <input type="text" inputmode="decimal" id="discount-price" name="discount-price"
+                               placeholder="0.00" required autocomplete="off">
+                    </div>
+                    <span id="discount-price-error" class="error-text"></span>
+                </div>
+
+                <!-- Discount % -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-percent"></i> Discount %</div>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">%</span>
+                        <input type="text" inputmode="decimal" id="discount-pct" name="discount-pct"
+                               placeholder="0" required autocomplete="off">
+                    </div>
+                    <span id="discount-pct-error" class="error-text"></span>
+                </div>
+
+                <!-- Quick Preset Chips -->
+                <div class="input-group">
+                    <div class="input-label"><i class="bi bi-lightning-fill"></i> Quick Presets</div>
+                    <div class="discount-presets" id="discount-presets">
+                        <button type="button" class="discount-chip" data-pct="5">5%</button>
+                        <button type="button" class="discount-chip" data-pct="10">10%</button>
+                        <button type="button" class="discount-chip" data-pct="15">15%</button>
+                        <button type="button" class="discount-chip" data-pct="20">20%</button>
+                        <button type="button" class="discount-chip" data-pct="25">25%</button>
+                        <button type="button" class="discount-chip" data-pct="30">30%</button>
+                        <button type="button" class="discount-chip" data-pct="50">50%</button>
+                        <button type="button" class="discount-chip" data-pct="75">75%</button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="button-group">
+                    <button type="submit"><i class="bi bi-calculator-fill"></i> Calculate Discount</button>
+                    <button type="button" id="clear-discount"><i class="bi bi-x-circle"></i> Clear</button>
+                </div>
+            </form>
+
+            <!-- Discount Result -->
+            <div id="discount-result" class="discount-result hidden">
+                <div class="result-badge"><i class="bi bi-tag-fill"></i> Discount Summary</div>
+
+                <div class="discount-save-banner">
+                    <div class="discount-save-pct" id="d-save-pct">20% OFF</div>
+                    <div class="discount-save-sub">You save on this purchase</div>
+                    <div class="discount-save-amount" id="d-save-amount">₹200.00</div>
+                </div>
+
+                <div class="discount-price-rows">
+                    <div class="discount-price-row">
+                        <span class="dpr-label">Original Price (MRP)</span>
+                        <span class="dpr-value" id="d-original">₹1,000.00</span>
+                    </div>
+                    <div class="discount-price-row dpr-discount">
+                        <span class="dpr-label">Discount Amount</span>
+                        <span class="dpr-value" id="d-discount-amt">− ₹200.00</span>
+                    </div>
+                    <div class="discount-divider"></div>
+                    <div class="discount-price-row dpr-final">
+                        <span class="dpr-label">Final / Selling Price</span>
+                        <span class="dpr-value dpr-final-value" id="d-final">₹800.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Share Actions -->
+            <div id="discount-actions" class="result-actions hidden">
+                <button type="button" id="discount-share" class="action-btn">
+                    <i class="bi bi-share-fill"></i> Share
+                </button>
+                <button type="button" id="discount-whatsapp" class="action-btn whatsapp-btn">
+                    <i class="bi bi-whatsapp"></i> WhatsApp
+                </button>
+            </div>
+        </section>
+
+        <!-- ============================================================
              Normal Calculator Tab
              ============================================================ -->
         <section id="normal" class="tab-content">
@@ -816,6 +903,7 @@
         <button class="tab-item" data-tab="emi"><i class="bi bi-bank"></i><span>EMI</span></button>
         <button class="tab-item" data-tab="settlement"><i class="bi bi-wallet2"></i><span>Settle</span></button>
         <button class="tab-item" data-tab="split"><i class="bi bi-people-fill"></i><span>Split</span></button>
+        <button class="tab-item" data-tab="discount"><i class="bi bi-tags-fill"></i><span>Discount</span></button>
         <button class="tab-item" data-tab="compare"><i class="bi bi-bar-chart-line"></i><span>Compare</span></button>
         <button class="tab-item" data-tab="normal"><i class="bi bi-grid-3x3-gap-fill"></i><span>Calc</span></button>
     </nav>

@@ -181,7 +181,23 @@ document.addEventListener('DOMContentLoaded', () => {
         splitSettlementBody: document.getElementById('split-settlement-body'),
         splitActions: document.getElementById('split-actions'),
         splitShare: document.getElementById('split-share'),
-        splitWhatsapp: document.getElementById('split-whatsapp')
+        splitWhatsapp: document.getElementById('split-whatsapp'),
+
+        // Discount Calculator
+        discountForm: document.getElementById('discount-form'),
+        discountPrice: document.getElementById('discount-price'),
+        discountPct: document.getElementById('discount-pct'),
+        discountPresets: document.getElementById('discount-presets'),
+        clearDiscount: document.getElementById('clear-discount'),
+        discountResult: document.getElementById('discount-result'),
+        dSavePct: document.getElementById('d-save-pct'),
+        dSaveAmount: document.getElementById('d-save-amount'),
+        dOriginal: document.getElementById('d-original'),
+        dDiscountAmt: document.getElementById('d-discount-amt'),
+        dFinal: document.getElementById('d-final'),
+        discountActions: document.getElementById('discount-actions'),
+        discountShare: document.getElementById('discount-share'),
+        discountWhatsapp: document.getElementById('discount-whatsapp')
     };
 
     // ============================================================
@@ -211,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSettlementResult: null,
         currentRevSettlementResult: null,
         currentSplitResult: null,
+        currentDiscountResult: null,
         interestChart: null,
         emiChart: null,
         compareChart: null,
@@ -236,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentSettlementResult: appState.currentSettlementResult ? { ...appState.currentSettlementResult } : null,
                 currentRevSettlementResult: appState.currentRevSettlementResult ? { ...appState.currentRevSettlementResult } : null,
                 currentSplitResult: appState.currentSplitResult ? { ...appState.currentSplitResult, text: undefined } : null,
+                currentDiscountResult: appState.currentDiscountResult ? { ...appState.currentDiscountResult, text: undefined } : null,
             };
             localStorage.setItem('calcResults', JSON.stringify(data));
         } catch (e) {}
@@ -542,6 +560,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.taxAmt) elements.splitTax.value = data.taxAmt.toFixed(2);
                     if (data.tipAmt) elements.splitTip.value = data.tipAmt.toFixed(2);
                     if (data.discount) elements.splitDiscount.value = data.discount.toFixed(2);
+                }
+                break;
+            }
+            case 'Discount': {
+                switchToTab('discount');
+                if (data.summary) {
+                    if (data.price) elements.discountPrice.value = Number(data.price).toLocaleString('en-IN');
+                    if (data.pct) {
+                        elements.discountPct.value = data.pct;
+                        document.querySelectorAll('.discount-chip').forEach(c => {
+                            c.classList.toggle('active', c.dataset.pct === String(data.pct));
+                        });
+                    }
+                    calculateDiscount();
                 }
                 break;
             }
@@ -2183,6 +2215,124 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Init people on load
     initSplitPeople();
+
+    // ============================================================
+    // Discount Calculator
+    // ============================================================
+
+    function calculateDiscount() {
+        const priceRaw = elements.discountPrice?.value.replace(/,/g, '') || '';
+        const pctRaw = elements.discountPct?.value.replace(/,/g, '') || '';
+        const price = parseFloat(priceRaw);
+        const pct = parseFloat(pctRaw);
+
+        if (!priceRaw || isNaN(price) || price < 0) {
+            elements.discountResult?.classList.add('hidden');
+            elements.discountActions?.classList.add('hidden');
+            appState.currentDiscountResult = null;
+            return;
+        }
+
+        const p = isNaN(pct) || pct < 0 ? 0 : pct;
+        const discountAmt = price * p / 100;
+        const finalPrice = price - discountAmt;
+
+        const fmtINR = (v) => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        if (elements.dSavePct) elements.dSavePct.textContent = `${p.toLocaleString('en-IN')}% OFF`;
+        if (elements.dSaveAmount) elements.dSaveAmount.textContent = fmtINR(discountAmt);
+        if (elements.dOriginal) elements.dOriginal.textContent = fmtINR(price);
+        if (elements.dDiscountAmt) elements.dDiscountAmt.textContent = '− ' + fmtINR(discountAmt);
+        if (elements.dFinal) elements.dFinal.textContent = fmtINR(finalPrice);
+
+        elements.discountResult?.classList.remove('hidden');
+        elements.discountActions?.classList.remove('hidden');
+
+        appState.currentDiscountResult = {
+            price: price,
+            pct: p,
+            discountAmt: discountAmt,
+            finalPrice: finalPrice,
+            text: `Discount Calculator\nPrice: ${fmtINR(price)}\nDiscount: ${p}% (− ${fmtINR(discountAmt)})\nFinal Price: ${fmtINR(finalPrice)}`
+        };
+
+        saveResultsToStorage();
+    }
+
+    // Live auto-calc on input
+    elements.discountPrice?.addEventListener('input', () => {
+        playClickSound();
+        vibrate(5);
+        calculateDiscount();
+    });
+
+    elements.discountPct?.addEventListener('input', () => {
+        playClickSound();
+        vibrate(5);
+        // Sync active preset chip
+        document.querySelectorAll('.discount-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.pct === elements.discountPct.value);
+        });
+        calculateDiscount();
+    });
+
+    // Preset chips
+    elements.discountPresets?.addEventListener('click', (e) => {
+        const chip = e.target.closest('.discount-chip');
+        if (!chip) return;
+        playClickSound();
+        vibrate(8);
+        document.querySelectorAll('.discount-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        elements.discountPct.value = chip.dataset.pct;
+        calculateDiscount();
+    });
+
+    // Form submit
+    elements.discountForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        playClickSound();
+        vibrate(15);
+        calculateDiscount();
+        if (appState.currentDiscountResult) {
+            const r = appState.currentDiscountResult;
+            saveToHistory('Discount', {
+                summary: `${r.price.toLocaleString('en-IN')} · ${r.pct}% off → ${'₹' + r.finalPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+                price: r.price,
+                pct: r.pct,
+                discountAmt: r.discountAmt,
+                finalPrice: r.finalPrice
+            });
+            saveResultsToStorage();
+        }
+    });
+
+    // Clear
+    elements.clearDiscount?.addEventListener('click', () => {
+        playClickSound();
+        elements.discountForm?.reset();
+        document.querySelectorAll('.discount-chip').forEach(c => c.classList.remove('active'));
+        elements.discountResult?.classList.add('hidden');
+        elements.discountActions?.classList.add('hidden');
+        appState.currentDiscountResult = null;
+        ['discount-price', 'discount-pct'].forEach(id => {
+            const el = document.getElementById(id);
+            el?.closest('.input-with-prefix')?.classList.remove('filled');
+        });
+    });
+
+    // Share & WhatsApp
+    elements.discountShare?.addEventListener('click', async () => {
+        playClickSound();
+        const text = appState.currentDiscountResult?.text || '';
+        await shareContent('Discount Calculator', text);
+    });
+
+    elements.discountWhatsapp?.addEventListener('click', () => {
+        playClickSound();
+        const text = appState.currentDiscountResult?.text || '';
+        shareToWhatsApp(text);
+    });
 
     // ============================================================
     // Settlement Auto-Calculation (Forward & Reverse)
