@@ -54,8 +54,4 @@ jobs:
           gh release delete apk-latest --yes --cleanup-tag 2>/dev/null || true
           gh release create apk-latest interest-calculator.apk \
             --title "Interest Calculator APK ($VERSION)" \
-            --notes "Debug APK - auto-built from the apk branch.
-
-Install: download interest-calculator.apk and open it on your Android phone (allow 'Install unknown apps' if asked).
-
-Fully offline - no internet permission needed at runtime."
+            --notes "Debug APK auto-built from the apk branch. Install: download interest-calculator.apk and open it on your Android phone (allow 'Install unknown apps' if asked). Fully offline - works without internet."
