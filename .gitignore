@@ -42,3 +42,6 @@ Thumbs.db
 
 # Node / Capacitor
 node_modules/
+
+# Local-only planning docs (never push to GitHub)
+opencode-instructions.md
