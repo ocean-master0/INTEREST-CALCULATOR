@@ -259,7 +259,63 @@ document.addEventListener('DOMContentLoaded', () => {
     // Separate state for each settlement mode (Issue 3: preserve values on mode switch)
     let forwardState = { collectionAmount: '', totalCharges: '', settlenowCharges: '' };
     let reverseState = { collectionAmount: '', available: '' };
-    
+
+    // ============================================================
+    // External File Mirror — Android/data/<appId>/files/
+    // localStorage remains the fast working copy; every change is
+    // also mirrored to JSON files in the app-specific external
+    // directory so data is visible in the phone's file manager.
+    // On boot, mirrored files can restore history/results if
+    // WebView storage was ever cleared. No-op in plain browsers.
+    // ============================================================
+
+    const fsPlugin = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) || null;
+    const FS_MIRRORED_KEYS = ['calcHistory', 'calcResults', 'fontSize', 'soundEnabled'];
+
+    function fsMirror(key) {
+        if (!fsPlugin) return;
+        const value = localStorage.getItem(key);
+        if (value === null) return;
+        fsPlugin.writeFile({
+            path: `${key}.json`,
+            directory: 'EXTERNAL',
+            data: value,
+            encoding: 'utf8',
+            recursive: true
+        }).catch(() => { /* best-effort mirror */ });
+    }
+
+    async function fsHydrate() {
+        if (!fsPlugin) return;
+        for (const key of ['calcHistory', 'calcResults']) {
+            try {
+                const res = await fsPlugin.readFile({
+                    path: `${key}.json`,
+                    directory: 'EXTERNAL',
+                    encoding: 'utf8'
+                });
+                const fileData = JSON.parse(res.data);
+                const localRaw = localStorage.getItem(key);
+                const localData = localRaw ? JSON.parse(localRaw) : null;
+                const count = (v) => Array.isArray(v) ? v.length : (v ? Object.keys(v).length : 0);
+                // Only restore when the mirror holds MORE data than
+                // localStorage (e.g. WebView storage was cleared).
+                if (count(fileData) > count(localData)) {
+                    localStorage.setItem(key, JSON.stringify(fileData));
+                    if (key === 'calcHistory') {
+                        appState.history = fileData;
+                        renderHistory();
+                    } else if (key === 'calcResults') {
+    restoreResultsFromStorage();
+
+    // Restore any data that exists only in the external mirror files
+    fsHydrate();
+                    }
+                }
+            } catch (e) { /* no mirror yet - first run */ }
+        }
+    }
+
     // Initialize sound icon
     updateSoundIcon();
 
@@ -278,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentDiscountResult: appState.currentDiscountResult ? { ...appState.currentDiscountResult, text: undefined } : null,
             };
             localStorage.setItem('calcResults', JSON.stringify(data));
+            fsMirror('calcResults');
         } catch (e) {}
     }
 
@@ -477,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.classList.remove('font-small', 'font-medium', 'font-large');
         body.classList.add('font-' + size);
         localStorage.setItem('fontSize', size);
+        fsMirror('fontSize');
 
         document.querySelectorAll('.font-option').forEach(el => {
             el.classList.toggle('active', el.dataset.size === size);
@@ -763,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.soundToggle?.addEventListener('click', () => {
         appState.soundEnabled = !appState.soundEnabled;
         localStorage.setItem('soundEnabled', appState.soundEnabled);
+        fsMirror('soundEnabled');
         updateSoundIcon();
         playClickSound();
     });
@@ -1184,6 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         appState.history.unshift(entry);
         if (appState.history.length > 50) appState.history.pop();
         localStorage.setItem('calcHistory', JSON.stringify(appState.history));
+        fsMirror('calcHistory');
         renderHistory();
     }
     
@@ -1211,6 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const id = parseInt(btn.dataset.id);
                 appState.history = appState.history.filter(h => h.id !== id);
                 localStorage.setItem('calcHistory', JSON.stringify(appState.history));
+        fsMirror('calcHistory');
                 renderHistory();
             });
         });
@@ -1268,6 +1329,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirmed) {
             appState.history = [];
             localStorage.setItem('calcHistory', JSON.stringify(appState.history));
+        fsMirror('calcHistory');
             renderHistory();
         }
     });
