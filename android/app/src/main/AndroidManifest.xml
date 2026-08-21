@@ -32,4 +32,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Haptic feedback: navigator.vibrate() in the WebView silently no-ops
+         without this. Normal-level permission - auto-granted, no prompt. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>
