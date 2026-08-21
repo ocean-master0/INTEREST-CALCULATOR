@@ -39,3 +39,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node / Capacitor
+node_modules/

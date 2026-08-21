@@ -1,0 +1,8 @@
+{
+  "appId": "com.oceanmaster0.interestcalculator",
+  "appName": "Interest Calculator",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  }
+}
