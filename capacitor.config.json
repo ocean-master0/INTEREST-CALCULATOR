@@ -2,6 +2,9 @@
   "appId": "com.oceanmaster0.interestcalculator",
   "appName": "Interest Calculator",
   "webDir": "web",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "force"
+  },
   "server": {
     "androidScheme": "https"
   }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches web app warm paper background -->
+    <color name="app_background">#EDE6D5</color>
+</resources>
