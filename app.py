@@ -3,6 +3,7 @@ Interest Calculator - Flask Application
 A web application for calculating simple and compound interest.
 """
 
+import math
 import os
 import time
 from collections import defaultdict
@@ -10,6 +11,7 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from markupsafe import Markup
 from flask_wtf.csrf import CSRFProtect, CSRFError
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
@@ -56,6 +58,43 @@ COMPOUND_FREQUENCIES = {
 
 app = Flask(__name__)
 
+# ── Trust proxy headers only as configured ─────────────────
+# Only trust X-Forwarded-For / X-Forwarded-Proto from the number of
+# reverse proxies actually in front of this app. This prevents a
+# client from spoofing its own IP (rate-limit bypass / targeted
+# rate-limit DoS on another user). Set TRUSTED_PROXY_COUNT to the
+# number of trusted proxies (e.g. 1 on Render, which sits behind a
+# single edge proxy). Default is 0 (no proxy trusted, remote_addr used
+# as-is) so nothing is trusted unless explicitly configured.
+_trusted_proxy_count = int(os.environ.get("TRUSTED_PROXY_COUNT", "0"))
+if _trusted_proxy_count > 0:
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=_trusted_proxy_count,
+        x_proto=_trusted_proxy_count,
+        x_host=_trusted_proxy_count,
+    )
+
+# ── Debug / Production Mode ─────────────────────────────────
+# IMPORTANT: this must NEVER default to True. Debug mode exposes the
+# interactive Werkzeug debugger (remote code execution) if the app is
+# ever reachable from the network. It is only turned on when
+# FLASK_DEBUG=1 is explicitly set — never inferred from a
+# platform-specific variable like RENDER, since deploying to any other
+# host without setting that variable would silently enable debug mode
+# in production.
+_debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+_is_production = not _debug_mode
+
+# ── HTTPS Enforcement Gate ─────────────────────────────────
+# Talisman (force_https + strict headers) and Secure cookies must only
+# activate when TLS is actually terminated in front of the app — i.e.
+# on a real deployment (Render sets RENDER) or via explicit opt-in
+# (ENABLE_TALISMAN=1). Keying them on _is_production alone would 301
+# every local http:// request to a nonexistent https:// endpoint and
+# drop session cookies on plain-HTTP LAN testing, breaking CSRF.
+_https_enforced = bool(os.environ.get("RENDER")) or os.environ.get("ENABLE_TALISMAN") == "1"
+
 # ── Secret Key ─────────────────────────────────────────────
 _secret_key = os.environ.get("SECRET_KEY")
 if not _secret_key:
@@ -73,21 +112,20 @@ if not _secret_key:
     except OSError:
         import secrets
         _secret_key = secrets.token_hex(32)
-    if not os.environ.get("RENDER"):
+    if _is_production:
         print("WARNING: Using a persisted SECRET_KEY (stored in .secret_key). Set SECRET_KEY env var for production.")
 app.config["SECRET_KEY"] = _secret_key
 
 # ── Secure Cookie Configuration ────────────────────────────
-_is_production = bool(os.environ.get("RENDER"))
-app.config["SESSION_COOKIE_SECURE"] = _is_production
+app.config["SESSION_COOKIE_SECURE"] = _https_enforced
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # ── CSRF Protection ───────────────────────────────────────
 csrf = CSRFProtect(app)
 
-# ── Security Headers (production only) ────────────────────
-if _is_production and Talisman is not None:
+# ── Security Headers (HTTPS-enforced deployments only) ─────
+if _https_enforced and Talisman is not None:
     Talisman(
         app,
         force_https=True,
@@ -197,13 +235,27 @@ def is_rate_limited(ip: str) -> bool:
     """Check if an IP address has exceeded the rate limit."""
     current_time = time.time()
     # Clean old entries
-    rate_limit_store[ip] = [t for t in rate_limit_store[ip] if current_time - t < RATE_LIMIT_WINDOW]
+    entries = [t for t in rate_limit_store[ip] if current_time - t < RATE_LIMIT_WINDOW]
 
-    if len(rate_limit_store[ip]) >= RATE_LIMIT_REQUESTS:
+    if len(entries) >= RATE_LIMIT_REQUESTS:
+        rate_limit_store[ip] = entries
         return True
 
-    rate_limit_store[ip].append(current_time)
+    entries.append(current_time)
+    rate_limit_store[ip] = entries
+
+    # Prevent unbounded growth of tracked IPs: opportunistically drop
+    # any other IP keys that have gone completely idle.
+    if len(rate_limit_store) > 10000:
+        for stale_ip in [k for k, v in rate_limit_store.items() if not v]:
+            del rate_limit_store[stale_ip]
+
     return False
+
+
+def is_finite_number(value: float) -> bool:
+    """Return True if value is a real, finite (non-NaN, non-infinite) number."""
+    return isinstance(value, (int, float)) and math.isfinite(value)
 
 
 # ============================================================
@@ -253,7 +305,12 @@ def calculate_interest():
         - frequency: Compounding frequency (for compound interest)
     """
     # Rate limiting check
-    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    # NOTE: request.remote_addr is used directly (never a raw client-supplied
+    # header). When behind a real reverse proxy, set TRUSTED_PROXY_COUNT so
+    # ProxyFix rewrites remote_addr from a *trusted* X-Forwarded-For hop —
+    # trusting the header directly would let a client spoof any IP and
+    # bypass the limit, or frame another user for being rate-limited.
+    client_ip = request.remote_addr or "unknown"
     if is_rate_limited(client_ip):
         return jsonify({'error': 'Too many requests. Please wait a moment.'}), 429
 
@@ -271,18 +328,31 @@ def calculate_interest():
         if not interest_type:
             return jsonify({'error': 'Please select an interest type.'}), 400
 
+        # Validate time_unit and frequency against known values instead of
+        # silently defaulting (previously an unknown time_unit silently fell
+        # back to "Years", and an unknown frequency raised an unhandled
+        # KeyError -> 500 error).
+        if time_unit not in TIME_CONVERSIONS:
+            return jsonify({'error': 'Please select a valid time unit.'}), 400
+
+        if interest_type == "compound" and frequency not in COMPOUND_FREQUENCIES:
+            return jsonify({'error': 'Please select a valid compounding frequency.'}), 400
+
         # Validate inputs
         if principal < 0 or rate < 0 or time_input < 0:
             return jsonify({'error': 'Negative values are not allowed.'}), 400
 
-        if time_input > MAX_TIME_YEARS and time_unit == "Years":
+        if not (is_finite_number(principal) and is_finite_number(rate) and is_finite_number(time_input)):
+            return jsonify({'error': 'Please enter valid, finite numbers.'}), 400
+
+        # Convert time to years, then enforce MAX_TIME_YEARS uniformly for
+        # every unit (previously this was only checked for "Years" and
+        # "Days", so e.g. a huge value in "Months" or "Seconds" could slip
+        # through and blow up the calculation into Infinity).
+        time_in_years = time_input * TIME_CONVERSIONS[time_unit]
+
+        if time_in_years > MAX_TIME_YEARS:
             return jsonify({'error': f'Time period is too long (max {MAX_TIME_YEARS} years).'}), 400
-
-        if time_unit == "Days" and time_input > 365000:
-            return jsonify({'error': 'Date range too large (max ~1000 years).'}), 400
-
-        # Convert time to years
-        time_in_years = time_input * TIME_CONVERSIONS.get(time_unit, 1)
 
         # Calculate interest
         if interest_type == "simple":
@@ -294,6 +364,13 @@ def calculate_interest():
                 return jsonify({'error': 'Result too large to calculate.'}), 400
         else:
             return jsonify({'error': 'Please select an interest type.'}), 400
+
+        # Guard against Infinity/NaN results (e.g. from an extreme rate),
+        # which Python's json module would otherwise serialize as the
+        # non-standard "Infinity"/"NaN" literals and break JSON.parse()
+        # on the frontend.
+        if not (is_finite_number(interest) and is_finite_number(total)):
+            return jsonify({'error': 'Result too large to calculate.'}), 400
 
         return jsonify({'result': format_result(interest_type, interest, total)})
 

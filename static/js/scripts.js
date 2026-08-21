@@ -6,6 +6,22 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
+    // HTML-escaping helper — always use this when interpolating
+    // user-supplied text (e.g. bill-split person/item names) into
+    // innerHTML. Without it, a name like "><img src=x onerror=...>"
+    // typed into a text field would execute as script (self-XSS).
+    // ============================================================
+
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ============================================================
     // Splash Screen — Fade out on first paint
     // ============================================================
     
@@ -1691,7 +1707,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const showValue = splitState.mode === 'custom' || splitState.mode === 'percent' || splitState.mode === 'ratio';
             row.innerHTML = `
                 <span class="person-color-dot" style="background:${color}"></span>
-                <input type="text" class="person-name-input" value="${name}" placeholder="Name" data-index="${i}">
+                <input type="text" class="person-name-input" value="${escapeHtml(name)}" placeholder="Name" data-index="${i}">
                 ${showValue ? `<input type="text" inputmode="decimal" class="person-value-input" placeholder="${splitState.mode === 'percent' ? '%' : splitState.mode === 'ratio' ? 'Share' : '₹'}" data-index="${i}">` : ''}
                 <span class="person-share-display" data-index="${i}"></span>
             `;
@@ -2032,10 +2048,10 @@ document.addEventListener('DOMContentLoaded', () => {
         row.className = 'item-row';
         row.dataset.itemId = itemIdCounter++;
         const personOpts = splitState.personNames.map((n, i) =>
-            `<option value="${n}" ${assignee === n || (!assignee && i === 0) ? 'selected' : ''}>${n}</option>`
+            `<option value="${escapeHtml(n)}" ${assignee === n || (!assignee && i === 0) ? 'selected' : ''}>${escapeHtml(n)}</option>`
         ).join('');
         row.innerHTML = `
-            <input type="text" class="item-name" placeholder="Item name" value="${name}">
+            <input type="text" class="item-name" placeholder="Item name" value="${escapeHtml(name)}">
             <div class="item-amount-wrap">
                 <span class="item-currency">₹</span>
                 <input type="text" inputmode="decimal" class="item-amount" placeholder="0.00" value="${amount}">
