@@ -2570,9 +2570,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const deducted = charges + settle;
+        const deducted = charges;
         const available = collect - deducted;
-        const percent = (deducted / collect) * 100;
+        const percent = collect > 0 ? (deducted / collect) * 100 : 0;
 
         if (elements.sDisplayCollection) animateINR(elements.sDisplayCollection, collect);
         if (elements.sDisplayCharges) animateINR(elements.sDisplayCharges, charges);
