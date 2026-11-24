@@ -45,3 +45,8 @@ node_modules/
 
 # Local-only planning docs (never push to GitHub)
 opencode-instructions.md
+
+interest-calculator-optimized
+AUDIT-REPORT.md
+optimization.patch
+premium-calculator-ui.html

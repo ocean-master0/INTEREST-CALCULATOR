@@ -7,21 +7,17 @@
     
     <!-- PWA Meta -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#ede6d5">
+    <meta name="theme-color" content="#FBE6CA">
     <link rel="apple-touch-icon" href="static/images/icon-192x192.png">
     <link rel="icon" href="static/favicon.ico" type="image/x-icon">
     
-    <!-- Fonts: Libre Baskerville + IBM Plex Mono (vendored locally for full offline) -->
+    <!-- Fonts: Cormorant Garamond + Manrope & Libre Baskerville + IBM Plex Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="static/vendor/fonts/google-fonts.css" rel="stylesheet">
 
     <!-- Bootstrap Icons (vendored locally) -->
     <link rel="stylesheet" href="static/vendor/bootstrap-icons/bootstrap-icons.min.css">
-
-    <!-- Chart.js for Interactive Charts (vendored locally) -->
-    <script src="static/vendor/chart.umd.min.js"></script>
-
-    <!-- jsPDF for PDF Generation (vendored locally) -->
-    <script src="static/vendor/jspdf.umd.min.js"></script>
+    <!-- Chart.js and jsPDF (570 KB) are now loaded on demand by scripts.js (loadVendor) -> faster start-up -->
     
 
 
@@ -30,6 +26,7 @@
     <link rel="stylesheet" href="static/css/styles.css">
 </head>
 <body>
+    <canvas id="bg"></canvas>
 
     <!-- ============================================================
          Splash Screen — PWA First Load

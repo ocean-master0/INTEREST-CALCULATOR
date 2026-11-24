@@ -3,9 +3,12 @@
   "appName": "Interest Calculator",
   "webDir": "web",
   "android": {
-    "adjustMarginsForEdgeToEdge": "force"
+    "adjustMarginsForEdgeToEdge": "force",
+    "webContentsDebuggingEnabled": false,
+    "allowMixedContent": false
   },
   "server": {
     "androidScheme": "https"
-  }
+  },
+  "loggingBehavior": "none"
 }

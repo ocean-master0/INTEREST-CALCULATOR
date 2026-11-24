@@ -18,6 +18,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install JS deps
         run: npm install
@@ -28,6 +29,7 @@ jobs:
           distribution: 'temurin'
           # Capacitor 7 Android toolchain (Gradle 8.11 / AGP 8.7) requires JDK 21
           java-version: '21'
+          cache: gradle
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -35,23 +37,23 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+      - name: Build release APK (R8-minified, non-debuggable)
+        run: cd android && ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-release
+          path: android/app/build/outputs/apk/release/app-release.apk
 
       - name: Publish APK to Releases
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ github.event_name == 'workflow_dispatch' && 'manual' || github.sha }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk interest-calculator.apk
+          cp android/app/build/outputs/apk/release/app-release.apk interest-calculator.apk
           # Rolling release: replace the previous build under the same tag
           gh release delete apk-latest --yes --cleanup-tag 2>/dev/null || true
           gh release create apk-latest interest-calculator.apk \
             --title "Interest Calculator APK ($VERSION)" \
-            --notes "Debug APK auto-built from the apk branch. Install: download interest-calculator.apk and open it on your Android phone (allow 'Install unknown apps' if asked). Fully offline - works without internet."
+            --notes "Release APK auto-built from the apk branch. Install: download interest-calculator.apk and open it on your Android phone (allow 'Install unknown apps' if asked). Fully offline - works without internet."

@@ -1,5 +1,6 @@
 ﻿/* cyrillic-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
@@ -9,6 +10,7 @@
 }
 /* cyrillic */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
@@ -18,6 +20,7 @@
 }
 /* vietnamese */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
@@ -27,6 +30,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
@@ -36,6 +40,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
@@ -45,6 +50,7 @@
 }
 /* cyrillic-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 500;
@@ -54,6 +60,7 @@
 }
 /* cyrillic */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 500;
@@ -63,6 +70,7 @@
 }
 /* vietnamese */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 500;
@@ -72,6 +80,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 500;
@@ -81,6 +90,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 500;
@@ -90,6 +100,7 @@
 }
 /* cyrillic-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
@@ -99,6 +110,7 @@
 }
 /* cyrillic */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
@@ -108,6 +120,7 @@
 }
 /* vietnamese */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
@@ -117,6 +130,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
@@ -126,6 +140,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
@@ -135,6 +150,7 @@
 }
 /* cyrillic-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 700;
@@ -144,6 +160,7 @@
 }
 /* cyrillic */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 700;
@@ -153,6 +170,7 @@
 }
 /* vietnamese */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 700;
@@ -162,6 +180,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 700;
@@ -171,6 +190,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 700;
@@ -180,6 +200,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'Libre Baskerville';
   font-style: italic;
   font-weight: 400;
@@ -189,6 +210,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'Libre Baskerville';
   font-style: italic;
   font-weight: 400;
@@ -198,6 +220,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'Libre Baskerville';
   font-style: normal;
   font-weight: 400;
@@ -207,6 +230,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'Libre Baskerville';
   font-style: normal;
   font-weight: 400;
@@ -216,6 +240,7 @@
 }
 /* latin-ext */
 @font-face {
+  font-display: swap;
   font-family: 'Libre Baskerville';
   font-style: normal;
   font-weight: 700;
@@ -225,6 +250,7 @@
 }
 /* latin */
 @font-face {
+  font-display: swap;
   font-family: 'Libre Baskerville';
   font-style: normal;
   font-weight: 700;

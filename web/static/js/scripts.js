@@ -22,13 +22,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================================
+    // Performance helpers (lazy vendor loading, tab-visibility handling)
+    // ============================================================
+    const VENDOR = { chart: 'static/vendor/chart.umd.min.js', jspdf: 'static/vendor/jspdf.umd.min.js' };
+    const _vendorP = {};
+    function loadVendor(name) {
+        if (!_vendorP[name]) {
+            _vendorP[name] = new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = VENDOR[name]; s.async = true;
+                s.onload = res;
+                s.onerror = () => { delete _vendorP[name]; rej(new Error('Could not load ' + name)); };
+                document.head.appendChild(s);
+            });
+        }
+        return _vendorP[name];
+    }
+
+    // Pause CSS animations + flush pending writes when the app is backgrounded
+    function onAppHidden() { flushHistory(); flushResults(); fsFlush(); }
+    document.addEventListener('visibilitychange', () => {
+        document.documentElement.classList.toggle('app-hidden', document.hidden);
+        if (document.hidden) onAppHidden();
+    });
+    addEventListener('pagehide', onAppHidden);
+
+    // ============================================================
     // Splash Screen — Fade out on first paint
     // ============================================================
     
-    setTimeout(() => {
+    requestAnimationFrame(() => setTimeout(() => {
         const splash = document.getElementById('splash-screen');
-        if (splash) splash.classList.add('hidden');
-    }, 800);
+        if (splash) {
+            splash.classList.add('hidden');
+            // remove from DOM so its infinite animations stop costing battery
+            setTimeout(() => splash.remove(), 600);
+        }
+    }, 350));
     
     // ============================================================
     // Service Worker Registration (PWA)
@@ -272,17 +302,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const fsPlugin = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) || null;
     const FS_MIRRORED_KEYS = ['calcHistory', 'calcResults', 'fontSize', 'soundEnabled'];
 
+    const _fsPending = new Set();
+    let _fsTimer = null;
     function fsMirror(key) {
         if (!fsPlugin) return;
-        const value = localStorage.getItem(key);
-        if (value === null) return;
-        fsPlugin.writeFile({
-            path: `${key}.json`,
-            directory: 'EXTERNAL',
-            data: value,
-            encoding: 'utf8',
-            recursive: true
-        }).catch(() => { /* best-effort mirror */ });
+        _fsPending.add(key);
+        clearTimeout(_fsTimer);
+        _fsTimer = setTimeout(fsFlush, 1500);   // batch disk writes
+    }
+    function fsFlush() {
+        if (!fsPlugin) return;
+        clearTimeout(_fsTimer);
+        _fsPending.forEach(key => {
+            const value = localStorage.getItem(key);
+            if (value === null) return;
+            fsPlugin.writeFile({ path: `${key}.json`, directory: 'EXTERNAL', data: value, encoding: 'utf8', recursive: true })
+                .catch(() => { /* best-effort mirror */ });
+        });
+        _fsPending.clear();
     }
 
     async function fsHydrate() {
@@ -306,10 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         appState.history = fileData;
                         renderHistory();
                     } else if (key === 'calcResults') {
-    restoreResultsFromStorage();
-
-    // Restore any data that exists only in the external mirror files
-    fsHydrate();
+                        restoreResultsFromStorage();
                     }
                 }
             } catch (e) { /* no mirror yet - first run */ }
@@ -323,7 +357,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Result Persistence (Issue 8)
     // ============================================================
 
-    function saveResultsToStorage() {
+    var _resT = null;
+    function saveResultsToStorage() { clearTimeout(_resT); _resT = setTimeout(() => { _resT = null; saveResultsNow(); }, 500); }
+    function flushResults() { if (_resT) { clearTimeout(_resT); _resT = null; saveResultsNow(); } }
+    function saveResultsNow() {
         try {
             const data = {
                 currentResult: appState.currentResult ? { ...appState.currentResult, text: undefined } : null,
@@ -347,7 +384,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 appState.currentResult = data.currentResult;
                 appState.currentResult.text = '';
                 if (elements.interestResult && data.currentResult.principal) {
-                    elements.interestResult.innerHTML = `${data.currentResult.type === 'compound' ? 'Compound' : 'Simple'} Interest: ₹${Number(data.currentResult.principal * data.currentResult.rate / 100).toLocaleString('en-IN', {maximumFractionDigits: 2})}<br>Total Amount: ₹${(data.currentResult.principal + data.currentResult.principal * data.currentResult.rate / 100).toLocaleString('en-IN', {maximumFractionDigits: 2})}`;
+                    const r0 = data.currentResult;
+                    let it = r0.interest, tt = r0.total;
+                    if (typeof it !== 'number' || typeof tt !== 'number') {   // older saved data: recompute with time + frequency
+                        const U = { Years: 1, Months: 1 / 12, Days: 1 / 365, Minutes: 1 / 525600, Seconds: 1 / 31536000 };
+                        const y = (r0.time || 0) * (U[r0.timeUnit] || 1);
+                        const n = { Annually: 1, 'Semi-Annually': 2, Quarterly: 4, Monthly: 12 }[r0.frequency] || 1;
+                        tt = r0.type === 'compound' ? r0.principal * Math.pow(1 + r0.rate / (100 * n), n * y) : r0.principal * (1 + r0.rate * y / 100);
+                        it = tt - r0.principal;
+                    }
+                    const f = v => Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    elements.interestResult.innerHTML = `${r0.type === 'compound' ? 'Compound' : 'Simple'} Interest: ₹${f(it)}<br>Total Amount: ₹${f(tt)}`;
                     elements.resultActions?.classList.remove('hidden');
                 }
             }
@@ -370,6 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     restoreResultsFromStorage();
+    // Restore data that exists only in the external mirror files (was never called before)
+    fsHydrate();
 
     // ============================================================
     // Haptic Feedback (Issue 5)
@@ -392,8 +441,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Animated Number Transitions (Issue 2)
     // ============================================================
 
-    function animateValue(element, start, end, prefix, suffix, duration = 400) {
+    const _anim = new WeakMap();
+    function animateValue(element, start, end, prefix, suffix, duration = 300) {
         if (!element) return;
+        const prevAnim = _anim.get(element);
+        if (prevAnim) cancelAnimationFrame(prevAnim);
         const startTime = performance.now();
         const isFloat = (end % 1) !== 0;
 
@@ -410,11 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (progress < 1) {
-                requestAnimationFrame(step);
+                _anim.set(element, requestAnimationFrame(step));
             }
         }
 
-        requestAnimationFrame(step);
+        _anim.set(element, requestAnimationFrame(step));
     }
 
     function animateINR(element, newValue, duration = 400) {
@@ -485,12 +537,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.getElementById('tab-content-wrapper');
         if (!wrapper) return;
 
-        const tabs = ['interest', 'emi', 'settlement', 'split', 'compare', 'normal'];
+        const tabs = ['interest', 'emi', 'settlement', 'split', 'discount', 'compare', 'normal'];   // 'discount' was missing
         let startX = 0;
         let startY = 0;
         let isSwiping = false;
 
         wrapper.addEventListener('touchstart', (e) => {
+            if (e.target.closest('input, select, textarea, table, canvas, .dp-modal')) { startX = 0; return; }
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
             isSwiping = false;
@@ -724,10 +777,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return typeof value === 'number' && Number.isFinite(value);
     }
 
-    // Format a number like Python's f"{x:,.2f}" — comma-grouped thousands,
-    // exactly 2 decimal places (en-US grouping, NOT en-IN lakh grouping).
-    function formatINR(value) {
-        return value.toLocaleString('en-US', {
+    // Plain 2-decimal number, Indian grouping (renamed from formatINR, which a second
+    // function of the same name further down silently overrode -> "₹x INR" double symbol).
+    function formatPlain(value) {
+        return value.toLocaleString('en-IN', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });
@@ -790,7 +843,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const label = interestType === "simple" ? "Simple Interest" : "Compound Interest";
             return {
-                result: `${label}: ${formatINR(interest)} INR<br>Total Amount: ${formatINR(total)} INR`
+                result: `${label}: ₹${formatPlain(interest)}<br>Total Amount: ₹${formatPlain(total)}`,
+                interest, total, frequency
             };
         } catch (e) {
             return { error: e.message };
@@ -889,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const yrs = Math.floor(diffYears);
             const remDays = diffDays - (yrs * 365);
             let text = `${yrs} Year${yrs > 1 ? 's' : ''}`;
-            if (remDays > 0) text += `  ·  ${diffDays.toLocaleString('en-IN')} days`;
+            if (remDays > 0) text += `  ·  ${remDays} day${remDays > 1 ? 's' : ''}`;
             elements.periodText.textContent = text;
         }
         elements.periodSubText.textContent = 'Auto-calculated from selected dates';
@@ -1233,18 +1287,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // History Management
     // ============================================================
     
-    function saveToHistory(type, data) {
-        const entry = {
-            id: Date.now(),
-            type: type,
-            data: data,
-            date: new Date().toLocaleString('en-IN')
-        };
-        appState.history.unshift(entry);
-        if (appState.history.length > 50) appState.history.pop();
-        localStorage.setItem('calcHistory', JSON.stringify(appState.history));
+    const COALESCE_TYPES = new Set(['Settlement', 'Bill Split']);   // live auto-calc tabs
+    let _histTimer = null;
+    function persistHistory() {
+        clearTimeout(_histTimer);
+        _histTimer = setTimeout(() => { _histTimer = null; writeHistory(); }, 600);
+    }
+    function writeHistory() {
+        try { localStorage.setItem('calcHistory', JSON.stringify(appState.history)); } catch (e) {}
         fsMirror('calcHistory');
-        renderHistory();
+    }
+    function flushHistory() { if (_histTimer) { clearTimeout(_histTimer); _histTimer = null; writeHistory(); } }
+
+    function saveToHistory(type, data) {
+        const now = Date.now();
+        const last = appState.history[0];
+        const entry = { id: now, type: type, data: data, t: now, date: new Date().toLocaleString('en-IN') };
+        if (last && COALESCE_TYPES.has(type) && last.type === type && now - (last.t || last.id) < 4000) {
+            entry.id = last.id;            // same typing session: update, don't add one entry per keystroke
+            appState.history[0] = entry;
+        } else {
+            appState.history.unshift(entry);
+            if (appState.history.length > 50) appState.history.length = 50;
+        }
+        persistHistory();
+        if (elements.historySidebar?.classList.contains('open')) renderHistory();
     }
     
     function renderHistory() {
@@ -1258,9 +1325,9 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.historyList.innerHTML = appState.history.map(item => `
             <div class="history-item" data-id="${item.id}">
                 <button class="history-item-delete" data-id="${item.id}">✕</button>
-                <div class="history-item-type">${item.type}</div>
-                <div class="history-item-value">${item.data.summary || ''}</div>
-                <div class="history-item-date">${item.date}</div>
+                <div class="history-item-type">${escapeHtml(item.type)}</div>
+                <div class="history-item-value">${escapeHtml(item.data.summary || '')}</div>
+                <div class="history-item-date">${escapeHtml(item.date)}</div>
             </div>
         `).join('');
         
@@ -1270,8 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const id = parseInt(btn.dataset.id);
                 appState.history = appState.history.filter(h => h.id !== id);
-                localStorage.setItem('calcHistory', JSON.stringify(appState.history));
-        fsMirror('calcHistory');
+                persistHistory();
                 renderHistory();
             });
         });
@@ -1293,6 +1359,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     elements.openHistory?.addEventListener('click', () => {
+        renderHistory();
         elements.historySidebar?.classList.add('open');
         elements.historyOverlay?.classList.add('open');
         playClickSound();
@@ -1328,8 +1395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmed = await showConfirmModal('Clear all history?');
         if (confirmed) {
             appState.history = [];
-            localStorage.setItem('calcHistory', JSON.stringify(appState.history));
-        fsMirror('calcHistory');
+            persistHistory();
             renderHistory();
         }
     });
@@ -1358,28 +1424,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function groupIN(intStr) {            // Indian grouping without parseInt (no precision loss on long numbers)
+        intStr = intStr.replace(/^0+(?=\d)/, '');
+        if (intStr.length <= 3) return intStr;
+        return intStr.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + intStr.slice(-3);
+    }
+
     function formatInputValue(input) {
-        let value = input.value.replace(/,/g, '');
-        
+        const raw = input.value;
+        const caret = input.selectionStart ?? raw.length;
+        const keep = raw.slice(0, caret).replace(/[^\d.]/g, '').length;   // digits/dots left of caret
+
+        let value = raw.replace(/,/g, '');
         if (!/^\d*\.?\d*$/.test(value)) {
             value = value.replace(/[^\d.]/g, '');
             const parts = value.split('.');
-            if (parts.length > 2) {
-                value = parts[0] + '.' + parts.slice(1).join('');
-            }
+            if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
         }
-
         if (value) {
             const parts = value.split('.');
-            parts[0] = parseInt(parts[0] || 0).toLocaleString('en-IN');
+            parts[0] = groupIN(parts[0] || '0');
             input.value = parts.join('.');
         } else {
             input.value = '';
         }
+        if (document.activeElement === input) {          // keep the caret where the user is typing
+            let seen = 0, pos = 0;
+            const v = input.value;
+            while (pos < v.length && seen < keep) { if (/[\d.]/.test(v[pos])) seen++; pos++; }
+            try { input.setSelectionRange(pos, pos); } catch (e) {}
+        }
 
         const errorSpan = document.getElementById(`${input.id}-error`);
         if (errorSpan) errorSpan.textContent = '';
-        
         validateInput(input, 0);
     }
 
@@ -1436,23 +1513,13 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.breakdownContainer?.classList.add('hidden');
         elements.chartContainer?.classList.add('hidden');
         
-        // Show progress bar
-        elements.interestProgress.style.width = '0%';
-        elements.interestProgress.style.display = 'block';
         
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            progress += 10;
-            elements.interestProgress.style.width = `${progress}%`;
-            if (progress >= 100) clearInterval(progressInterval);
-        }, 80);
-
         try {
             const formData = new FormData(elements.interestForm);
             // Fully offline: compute locally instead of POSTing to the server
             const data = calculateInterestLocal(formData);
 
-            setTimeout(() => {
+            (() => {
                 elements.interestProgress.style.display = 'none';
                 elements.interestSkeleton?.classList.add('hidden');
                 
@@ -1472,7 +1539,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         rate: parseFloat(formData.get('rate').replace(/,/g, '')),
                         time: parseFloat(formData.get('time').replace(/,/g, '')),
                         timeUnit: formData.get('time_unit'),
-                        type: formData.get('interest_type')
+                        type: formData.get('interest_type'),
+                        frequency: formData.get('frequency') || 'Annually',
+                        interest: data.interest,
+                        total: data.total
                     };
                     
                     // Generate breakdown & chart for compound interest
@@ -1491,7 +1561,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     saveResultsToStorage();
                 }
-            }, 800);
+            })();
         } catch (error) {
             elements.interestProgress.style.display = 'none';
             elements.interestSkeleton?.classList.add('hidden');
@@ -1503,50 +1573,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Breakdown Table Generation (with Frequency Support)
     // ============================================================
     
+    const _TU = { Years: 1, Months: 1 / 12, Days: 1 / 365, Minutes: 1 / 525600, Seconds: 1 / 31536000 };
+    function interestSchedule(result, maxYears) {
+        const years = (result.time || 0) * (_TU[result.timeUnit] || 1);
+        const freq = result.frequency || document.getElementById('frequency')?.value;
+        const n = { 'Annually': 1, 'Semi-Annually': 2, 'Quarterly': 4, 'Monthly': 12 }[freq] || 1;
+        const rows = [];
+        let bal = result.principal;
+        const steps = Math.min(Math.ceil(years), maxYears);
+        for (let i = 1; i <= steps; i++) {
+            const span = Math.min(1, years - (i - 1));          // last year may be partial
+            const open = bal;
+            bal = open * Math.pow(1 + result.rate / (100 * n), n * span);
+            rows.push({ year: i, open, interest: bal - open, close: bal });
+        }
+        return rows;
+    }
+
     function generateBreakdownTable(result) {
         if (!elements.breakdownTable) return;
-        
         const tbody = elements.breakdownTable.querySelector('tbody');
-        tbody.innerHTML = '';
-        
-        let years = result.time;
-        if (result.timeUnit === 'Months') years = result.time / 12;
-        if (result.timeUnit === 'Days') years = result.time / 365;
-        
-        const yearsInt = Math.ceil(Math.min(years, 30)); // Limit to 30 years
-        let balance = result.principal;
-        const annualRate = result.rate / 100;
-        
-        // Get compounding frequency from form
-        const frequencySelect = document.getElementById('frequency');
-        const frequency = frequencySelect ? frequencySelect.value : 'Annually';
-        
-        // Compounding periods per year
-        const periodsMap = {
-            'Annually': 1,
-            'Semi-Annually': 2,
-            'Quarterly': 4,
-            'Monthly': 12
-        };
-        const n = periodsMap[frequency] || 1;
-        const ratePerPeriod = annualRate / n;
-        
-        for (let i = 1; i <= yearsInt; i++) {
-            const openingBalance = balance;
-            // Compound n times per year
-            balance = openingBalance * Math.pow(1 + ratePerPeriod, n);
-            const interest = balance - openingBalance;
-            
-            tbody.innerHTML += `
-                <tr>
-                    <td>${i}</td>
-                    <td>₹${openingBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                    <td>₹${interest.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                    <td>₹${balance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                </tr>
-            `;
-        }
-        
+        const f = v => '₹' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+        tbody.innerHTML = interestSchedule(result, 30).map(r =>
+            `<tr><td>${r.year}</td><td>${f(r.open)}</td><td>${f(r.interest)}</td><td>${f(r.close)}</td></tr>`).join('');
         elements.breakdownContainer?.classList.remove('hidden');
     }
 
@@ -1555,7 +1604,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     
     function generateInterestChart(result) {
-        if (!elements.chartContainer || typeof Chart === 'undefined') return;
+        if (!elements.chartContainer) return;
+        if (typeof Chart === 'undefined') { loadVendor('chart').then(() => generateInterestChart(result)).catch(() => {}); return; }
         
         const ctx = document.getElementById('interest-chart')?.getContext('2d');
         if (!ctx) return;
@@ -1567,16 +1617,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.timeUnit === 'Months') years = result.time / 12;
         if (result.timeUnit === 'Days') years = result.time / 365;
         
-        const yearsInt = Math.ceil(Math.min(years, 20));
+        const sched = interestSchedule(result, 20);
+        const yearsInt = sched.length;
         const labels = Array.from({length: yearsInt + 1}, (_, i) => `Year ${i}`);
         const principalData = Array(yearsInt + 1).fill(result.principal);
-        const totalData = [result.principal];
-        
-        let balance = result.principal;
-        for (let i = 1; i <= yearsInt; i++) {
-            balance = balance * (1 + result.rate / 100);
-            totalData.push(balance);
-        }
+        const totalData = [result.principal, ...sched.map(r => r.close)];
         
         appState.interestChart = new Chart(ctx, {
             type: 'line',
@@ -1754,7 +1799,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     function generateEmiChart(principal, interest) {
-        if (!elements.emiChartContainer || typeof Chart === 'undefined') return;
+        if (!elements.emiChartContainer) return;
+        if (typeof Chart === 'undefined') { loadVendor('chart').then(() => generateEmiChart(principal, interest)).catch(() => {}); return; }
         
         const ctx = document.getElementById('emi-chart')?.getContext('2d');
         if (!ctx) return;
@@ -1867,7 +1913,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function autoCalculateSplit() {
+    var _t_autoCalculateSplit;
+    function autoCalculateSplit() { clearTimeout(_t_autoCalculateSplit); _t_autoCalculateSplit = setTimeout(autoCalculateSplitNow, 220); }
+    function autoCalculateSplitNow() {
         const totalRaw = elements.splitTotal?.value.replace(/,/g, '') || '';
         const total = parseFloat(totalRaw);
         if (!totalRaw || isNaN(total) || total <= 0) {
@@ -2553,7 +2601,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Forward Mode ---
-    function calculateSettlement() {
+    var _t_calculateSettlement;
+    function calculateSettlement() { clearTimeout(_t_calculateSettlement); _t_calculateSettlement = setTimeout(calculateSettlementNow, 220); }
+    function calculateSettlementNow() {
         const collectRaw = elements.collectionAmount?.value.replace(/,/g, '') || '';
         const chargesRaw = elements.totalCharges?.value.replace(/,/g, '') || '';
         const settleRaw = elements.settlenowCharges?.value.replace(/,/g, '') || '';
@@ -2614,7 +2664,9 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.settlenowCharges?.addEventListener('input', () => { saveForwardState(); calculateSettlement(); });
 
     // --- Reverse Mode ---
-    function calculateReverseSettlement() {
+    var _t_calculateReverseSettlement;
+    function calculateReverseSettlement() { clearTimeout(_t_calculateReverseSettlement); _t_calculateReverseSettlement = setTimeout(calculateReverseSettlementNow, 220); }
+    function calculateReverseSettlementNow() {
         const collectRaw = elements.revCollectionAmount?.value.replace(/,/g, '') || '';
         const availableRaw = elements.revAvailable?.value.replace(/,/g, '') || '';
 
@@ -2674,7 +2726,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function generateSettlementPDF(mode) {
         if (typeof window.jspdf === 'undefined' && typeof jspdf === 'undefined') {
-            alert('PDF generation not available. Please check your internet connection.');
+            loadVendor('jspdf').then(() => generateSettlementPDF(mode)).catch(() => alert('PDF library could not be loaded.'));
             return;
         }
 
@@ -2916,7 +2968,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     function generateCompareChart(principal, years, rate) {
-        if (!elements.compareChartContainer || typeof Chart === 'undefined') return;
+        if (!elements.compareChartContainer) return;
+        if (typeof Chart === 'undefined') { loadVendor('chart').then(() => generateCompareChart(principal, years, rate)).catch(() => {}); return; }
         
         const ctx = document.getElementById('compare-chart')?.getContext('2d');
         if (!ctx) return;
@@ -3046,7 +3099,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Auto-calculate comparison on input change (Issue 9)
-    function autoCalculateCompare() {
+    var _t_autoCalculateCompare;
+    function autoCalculateCompare() { clearTimeout(_t_autoCalculateCompare); _t_autoCalculateCompare = setTimeout(autoCalculateCompareNow, 220); }
+    function autoCalculateCompareNow() {
         const principal = parseFloat(document.getElementById('compare-principal')?.value.replace(/,/g, '') || '');
         const rate = parseFloat(document.getElementById('compare-rate')?.value.replace(/,/g, '') || '');
         const time = parseFloat(document.getElementById('compare-time')?.value.replace(/,/g, '') || '');
@@ -3166,7 +3221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function generatePDF(type) {
         if (typeof window.jspdf === 'undefined' && typeof jspdf === 'undefined') {
-            alert('PDF generation not available. Please check your internet connection.');
+            loadVendor('jspdf').then(() => generatePDF(type)).catch(() => alert('PDF library could not be loaded.'));
             return;
         }
         
@@ -3506,6 +3561,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleCalculatorButton(value) {
+        const wasFinal = calcState.isResultState;   // pressing = again must not duplicate history
         switch (value) {
             case 'C':
                 calcState.expression = '';
@@ -3527,8 +3583,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateCalculatorDisplay(true);
                 calcState.isResultState = true;
                 
-                // Save to history
-                if (calcState.expression) {
+                // Save to history (once per calculation)
+                if (calcState.expression && !wasFinal) {
                     try {
                         const result = evaluateExpression(calcState.expression);
                         saveToHistory('Calculator', {
@@ -3550,50 +3606,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function trimNum(v) { return v.toFixed(10).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''); }
+
     function handlePercentage() {
-        // Standard calculator percentage behavior:
-        // - X + Y% = X + (X × Y/100)  →  100 + 50% = 150
-        // - X - Y% = X - (X × Y/100)  →  100 - 50% = 50
-        // - X × Y% = X × (Y/100)      →  100 × 50% = 50
-        // - X ÷ Y% = X ÷ (Y/100)      →  100 ÷ 50% = 200
-        // - Just Y% = Y/100           →  50% = 0.5
-        
+        // A + B% -> A + (A x B/100) using the value of EVERYTHING left of the operator
+        // (old code only used the nearest number: 5 x 3 + 10% gave 5 x 3 + 0.3, now 15 + 1.5)
         const expr = calcState.expression;
-        
-        // Match pattern: number operator number (e.g., "100 + 50")
-        const addSubMatch = expr.match(/(-?\d*\.?\d+)\s*([+\-])\s*(-?\d*\.?\d+)$/);
-        const mulDivMatch = expr.match(/(-?\d*\.?\d+)\s*([×÷])\s*(-?\d*\.?\d+)$/);
-        
-        if (addSubMatch) {
-            // Pattern: A + B% → A + (A × B/100) OR A - B% → A - (A × B/100)
-            const baseNum = parseFloat(addSubMatch[1]);
-            const operator = addSubMatch[2];
-            const percentNum = parseFloat(addSubMatch[3]);
-            const percentValue = baseNum * (percentNum / 100);
-            
-            const newExpr = expr.slice(0, addSubMatch.index) + 
-                           baseNum + ` ${operator} ` + percentValue;
-            calcState.expression = newExpr;
-        } else if (mulDivMatch) {
-            // Pattern: A × B% → A × (B/100) OR A ÷ B% → A ÷ (B/100)
-            const baseNum = parseFloat(mulDivMatch[1]);
-            const operator = mulDivMatch[2];
-            const percentNum = parseFloat(mulDivMatch[3]);
-            const percentValue = percentNum / 100;
-            
-            const newExpr = expr.slice(0, mulDivMatch.index) + 
-                           baseNum + ` ${operator} ` + percentValue;
-            calcState.expression = newExpr;
-        } else {
-            // Just a number: Y% = Y/100
-            const match = expr.match(/(-?\d*\.?\d+)$/);
-            if (match) {
-                const lastNumber = match[0];
-                const percentage = (parseFloat(lastNumber) / 100).toString();
-                calcState.expression = expr.slice(0, -lastNumber.length) + percentage;
+        const m = expr.match(/^(.*\S)\s+([+\-×÷])\s+(-?\d*\.?\d+)$/);
+        if (m) {
+            const left = m[1], op = m[2], pct = parseFloat(m[3]);
+            let val;
+            if (op === '+' || op === '-') {
+                let base;
+                try { base = evaluateExpression(left); } catch { base = parseFloat(left); }
+                val = base * pct / 100;
+            } else {
+                val = pct / 100;
             }
+            if (Number.isFinite(val)) calcState.expression = `${left} ${op} ${trimNum(val)}`;
+        } else {
+            const mm = expr.match(/(-?\d*\.?\d+)$/);
+            if (mm) calcState.expression = expr.slice(0, -mm[0].length) + trimNum(parseFloat(mm[0]) / 100);
         }
-        
         if (calcState.isResultState) calcState.isResultState = false;
         updateCalculatorDisplay(false);
     }
@@ -3713,11 +3747,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Use intrinsic measurement — if text still wider, shrink further
         elements.resultSpan.style.fontSize = size + 'px';
 
-        // If still overflowing after setting size, reduce by 2px until it fits
-        let currentSize = size;
-        while (elements.resultSpan.scrollWidth > maxWidth + 2 && currentSize > 12) {
-            currentSize -= 2;
-            elements.resultSpan.style.fontSize = currentSize + 'px';
+        const sw = elements.resultSpan.scrollWidth;           // single measurement (old loop forced a reflow per step)
+        if (sw > maxWidth + 2) {
+            elements.resultSpan.style.fontSize = Math.max(12, Math.floor(size * maxWidth / sw) - 1) + 'px';
         }
     }
 
@@ -3773,32 +3805,31 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function tokenize(expr) {
         const tokens = [];
-        let numBuffer = '';
-        
+        let num = '';
+        const flush = () => {
+            if (num === '') return;
+            const v = parseFloat(num);
+            if (Number.isNaN(v)) throw new Error('Invalid number');
+            tokens.push(v); num = '';
+        };
         for (let i = 0; i < expr.length; i++) {
-            const char = expr[i];
-            
-            if (char === ' ') continue;
-            
-            if (/[0-9.]/.test(char)) {
-                numBuffer += char;
+            const ch = expr[i];
+            if (ch === ' ') continue;
+            if (/[0-9.]/.test(ch)) { num += ch; continue; }
+            if (!/[+\-*/()]/.test(ch)) continue;
+            flush();
+            const last = tokens[tokens.length - 1];
+            const unary = (ch === '-' || ch === '+') && (last === undefined || (typeof last === 'string' && last !== ')'));
+            if (unary) {
+                if (ch === '+') continue;
+                let j = i + 1; while (expr[j] === ' ') j++;
+                if (expr[j] === '(') { tokens.push(-1, '*'); }   // -(3+2)  ->  -1 * (3+2)
+                else num = '-';                                  // 5 x -3  ->  5 x (-3)
             } else {
-                if (numBuffer) {
-                    tokens.push(parseFloat(numBuffer));
-                    numBuffer = '';
-                }
-                if (/[+\-*/()]/.test(char)) {
-                    // Handle negative numbers
-                    if (char === '-' && (tokens.length === 0 || tokens[tokens.length - 1] === '(')) {
-                        numBuffer = '-';
-                    } else {
-                        tokens.push(char);
-                    }
-                }
+                tokens.push(ch);
             }
         }
-        
-        if (numBuffer) tokens.push(parseFloat(numBuffer));
+        flush();
         return tokens;
     }
     
@@ -3838,6 +3869,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof token === 'number') {
                 stack.push(token);
             } else {
+                if (stack.length < 2) throw new Error('Invalid expression');
                 const b = stack.pop();
                 const a = stack.pop();
                 switch (token) {
@@ -3883,6 +3915,136 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             playClickSound();
             handleCalculatorButton(keyMap[e.key]);
+        }
+    });
+
+    // ============================================================
+    // Guilloche Background, drawn on canvas (from premium UI)
+    // ============================================================
+    function drawBg() {
+        const c = document.getElementById('bg');
+        if (!c) return;
+        const d = Math.min(window.devicePixelRatio || 1, 2);
+        const W = window.innerWidth;
+        const H = Math.max(window.innerHeight, (window.screen.height * 0.9) | 0);
+        c.width = W * d;
+        c.height = H * d;
+        c.style.width = W + 'px';
+        c.style.height = H + 'px';
+        const x = c.getContext('2d');
+        if (!x) return;
+        x.scale(d, d);
+        let g = x.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#FDEBD3');
+        g.addColorStop(0.5, '#FADFBC');
+        g.addColorStop(1, '#FCE7CB');
+        x.fillStyle = g;
+        x.fillRect(0, 0, W, H);
+        g = x.createRadialGradient(W / 2, H * 0.48, 0, W / 2, H * 0.48, W * 0.8);
+        g.addColorStop(0, 'rgba(255,246,228,.9)');
+        g.addColorStop(1, 'rgba(255,246,228,0)');
+        x.fillStyle = g;
+        x.fillRect(0, 0, W, H);
+        const cx = W / 2, cy = H * 0.48, U = W * 0.47, col = a => `rgba(200,120,45,${Math.min(1, a * 1.6)})`;
+        const rose = (px, py, Rr, r, n, a, lw = 0.6) => {
+            x.strokeStyle = col(a);
+            x.lineWidth = lw;
+            const k = Rr - r;
+            for (let i = 0; i < n; i++) {
+                const t = (i / n) * 6.2832;
+                x.beginPath();
+                x.arc(px + k * Math.cos(t), py + k * Math.sin(t), r, 0, 6.2832);
+                x.stroke();
+            }
+        };
+        const ring = (px, py, r, a, lw = 1) => {
+            x.strokeStyle = col(a);
+            x.lineWidth = lw;
+            x.beginPath();
+            x.arc(px, py, r, 0, 6.2832);
+            x.stroke();
+        };
+        rose(cx, cy - H * 0.36, U * 1.05, U * 0.55, 56, 0.2);
+        rose(cx, cy + H * 0.36, U * 1.05, U * 0.55, 56, 0.2);
+        rose(cx, cy, U * 1.0, U * 0.5, 64, 0.22);
+        rose(cx, cy, U * 0.82, U * 0.38, 52, 0.3);
+        rose(cx, cy, U * 0.7, U * 0.3, 72, 0.34);
+        rose(cx, cy, U * 0.52, U * 0.27, 28, 0.42, 0.7);
+        rose(cx, cy, U * 0.3, U * 0.15, 18, 0.5, 0.8);
+        ring(cx, cy, U * 0.95, 0.5, 1.2);
+        ring(cx, cy, U * 0.91, 0.3, 0.8);
+        ring(cx, cy, U * 0.75, 0.35, 0.8);
+        const N = 48;
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * 6.2832, rr = U * 0.93;
+            x.fillStyle = col(i % 2 ? 0.55 : 0.8);
+            x.beginPath();
+            x.arc(cx + rr * Math.cos(t), cy + rr * Math.sin(t), i % 2 ? 1.4 : 2.6, 0, 6.2832);
+            x.fill();
+        }
+        const dia = (px, py, s) => {
+            x.fillStyle = col(0.85);
+            x.beginPath();
+            x.moveTo(px, py - s);
+            x.lineTo(px + s * 0.6, py);
+            x.lineTo(px, py + s);
+            x.lineTo(px - s * 0.6, py);
+            x.fill();
+        };
+        [[cx, cy - U * 0.93], [cx, cy + U * 0.93], [cx - U * 0.93, cy], [cx + U * 0.93, cy]].forEach(p => dia(p[0], p[1], 7));
+        const lotus = (n, len, w, a) => {
+            for (let i = 0; i < n; i++) {
+                x.save();
+                x.translate(cx, cy);
+                x.rotate((i / n) * 6.2832);
+                x.beginPath();
+                x.ellipse(0, -len * 0.55, w, len * 0.5, 0, 0, 6.2832);
+                x.fillStyle = col(a * 0.25);
+                x.fill();
+                x.strokeStyle = col(a);
+                x.lineWidth = 0.9;
+                x.stroke();
+                x.beginPath();
+                x.moveTo(0, -len * 0.15);
+                x.lineTo(0, -len * 0.95);
+                x.stroke();
+                x.restore();
+            }
+        };
+        lotus(16, U * 0.2, U * 0.055, 0.8);
+        lotus(12, U * 0.13, U * 0.04, 0.9);
+        ring(cx, cy, U * 0.035, 0.9, 1.4);
+        const m = 9, n = 26;
+        x.strokeStyle = col(0.7);
+        x.lineWidth = 1.4;
+        x.beginPath();
+        x.moveTo(m + n, m);
+        x.lineTo(W / 2 - 22, m);
+        x.lineTo(W / 2, m + 10);
+        x.lineTo(W / 2 + 22, m);
+        x.lineTo(W - m - n, m);
+        x.lineTo(W - m, m + n);
+        x.lineTo(W - m, H - m - n);
+        x.lineTo(W - m - n, H - m);
+        x.lineTo(W / 2 + 22, H - m);
+        x.lineTo(W / 2, H - m - 10);
+        x.lineTo(W / 2 - 22, H - m);
+        x.lineTo(m + n, H - m);
+        x.lineTo(m, H - m - n);
+        x.lineTo(m, m + n);
+        x.closePath();
+        x.stroke();
+        x.lineWidth = 0.6;
+        x.strokeRect(m + 9, m + 9, W - 2 * m - 18, H - 2 * m - 18);
+        dia(W / 2, m + 22, 6);
+        dia(W / 2, H - m - 22, 6);
+    }
+    try { drawBg(); } catch (e) {}
+    let _bgW = window.innerWidth;
+    window.addEventListener('resize', () => {
+        if (window.innerWidth !== _bgW) {
+            _bgW = window.innerWidth;
+            try { drawBg(); } catch (e) {}
         }
     });
 
